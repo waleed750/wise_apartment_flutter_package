@@ -8,21 +8,36 @@ public class PluginUtils {
      * Helper to create BlinkyAuthAction from MethodChannel arguments.
      */
     public static BlinkyAuthAction createAuthAction(Map<String, Object> args) {
-        BlinkyAuthAction auth = new BlinkyAuthAction();
-        auth.setAuthCode((String) args.get("authCode"));
-        auth.setDnaKey((String) args.get("dnaKey"));
-        auth.setMac((String) args.get("mac"));
-        
+        BlinkyAuthAction.Builder builder = new BlinkyAuthAction.Builder();
+
+        if (args == null) return builder.build();
+
+        Object v;
+        v = args.get("authCode");
+        if (v instanceof String) builder.authCode((String) v);
+
+        v = args.get("dnaKey");
+        if (v instanceof String) builder.dnaKey((String) v);
+
+        v = args.get("mac");
+        if (v instanceof String) builder.mac((String) v);
+
         if (args.containsKey("keyGroupId")) {
-            Object val = args.get("keyGroupId");
-            if (val instanceof Integer) auth.setKeyGroupId((Integer) val);
+            v = args.get("keyGroupId");
+            if (v instanceof Integer) builder.keyGroupId((Integer) v);
+            else if (v instanceof String) {
+                try { builder.keyGroupId(Integer.parseInt((String) v)); } catch (Exception ignored) {}
+            }
         }
-        
+
         if (args.containsKey("bleProtocolVer")) {
-            Object val = args.get("bleProtocolVer");
-            if (val instanceof Integer) auth.setBleProtocolVer((Integer) val);
+            v = args.get("bleProtocolVer");
+            if (v instanceof Integer) builder.bleProtocolVer((Integer) v);
+            else if (v instanceof String) {
+                try { builder.bleProtocolVer(Integer.parseInt((String) v)); } catch (Exception ignored) {}
+            }
         }
-        
-        return auth;
+
+        return builder.build();
     }
 }

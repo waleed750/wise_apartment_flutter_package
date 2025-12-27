@@ -56,6 +56,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
   private void initClient() {
       if (bleClient == null) {
           bleClient = new HxjBleClient(context);
+          Log.d(TAG, "HxjBleClient initialized");
           bleClient.setLinkCallBack(new LinkCallBack() {
               @Override
               public void onDeviceConnected(@NonNull BluetoothDevice device) {

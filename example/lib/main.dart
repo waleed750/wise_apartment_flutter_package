@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
+import 'dart:io' show Platform;
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'screens/add_device.dart';
+import 'screens/device_details.dart';
+import 'src/secure_storage.dart';
 
 void main() {
   runApp(const MaterialApp(home: MyApp()));
@@ -17,6 +23,7 @@ class _MyAppState extends State<MyApp> {
 
   String _log = "";
   List<Map<String, dynamic>> _scanResults = [];
+  List<Map<String, dynamic>> _savedDevices = [];
   Map<String, dynamic>? _buildConfig;
 
   // Form Controllers
@@ -41,15 +48,87 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _startScan() async {
-    _addLog("Starting Scan...");
+    _addLog("Checking permissions and Bluetooth state before scanning...");
+
+    // Request required permissions
     try {
+      // On Android we need location and bluetooth permissions
+      if (Platform.isAndroid) {
+        final permissions = <Permission>[
+          Permission.location,
+          Permission.bluetooth,
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+        ];
+
+        final statuses = await permissions.request();
+
+        // If any required permission is denied, prompt the user
+        bool allGranted = true;
+        for (final p in permissions) {
+          final s = await p.status;
+          if (!s.isGranted) {
+            allGranted = false;
+            break;
+          }
+        }
+
+        if (!allGranted) {
+          _addLog(
+            'Permissions not granted. Request permissions in app settings.',
+          );
+          final open = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Permissions required'),
+              content: const Text(
+                'Bluetooth and Location permissions are required to scan for devices.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          );
+          if (open == true) openAppSettings();
+          return;
+        }
+      }
+
+      // Check Bluetooth adapter state
+      final btOn = await FlutterBluePlus.isOn;
+      if (btOn == false) {
+        _addLog('Bluetooth is disabled. Please enable Bluetooth to scan.');
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Bluetooth disabled'),
+            content: const Text('Please enable Bluetooth to scan for devices.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      _addLog('Starting Scan...');
       final results = await _plugin.startScan(timeoutMs: 5000);
       setState(() {
         _scanResults = results;
       });
-      _addLog("Scan Complete. Found: ${results.length} devices.");
+      _addLog('Scan Complete. Found: ${results.length} devices.');
     } catch (e) {
-      _addLog("Scan Failed: $e");
+      _addLog('Scan Failed: $e');
     }
   }
 
@@ -90,102 +169,119 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedDevices();
+  }
+
+  Future<void> _loadSavedDevices() async {
+    final devices = await SecureDeviceStorage.loadDevices();
+    setState(() => _savedDevices = devices);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('WiseApartment V2 (HXJ BLE)')),
+      appBar: AppBar(
+        title: const Text('WiseApartment V2 — Devices'),
+        actions: [
+          IconButton(
+            tooltip: 'Scan',
+            onPressed: _startScan,
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
+            tooltip: 'Init BLE',
+            onPressed: _initBle,
+            icon: const Icon(Icons.bluetooth),
+          ),
+          IconButton(
+            tooltip: 'Build Config',
+            onPressed: _getBuildConfig,
+            icon: const Icon(Icons.settings),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    ElevatedButton(
-                      onPressed: _initBle,
-                      child: const Text("Init BLE"),
-                    ),
-                    ElevatedButton(
-                      onPressed: _startScan,
-                      child: const Text("Scan (5s)"),
-                    ),
-                    ElevatedButton(
-                      onPressed: _getBuildConfig,
-                      child: const Text("Build Config"),
-                    ),
-                    OutlinedButton(
-                      onPressed: _clearS,
-                      child: const Text("Clear State"),
-                    ),
-                  ],
-                ),
-                const Divider(),
-                const Text(
-                  "Operation: Open Lock",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                TextField(
-                  controller: _macController,
-                  decoration: const InputDecoration(labelText: "MAC Address"),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _authCodeController,
-                        decoration: const InputDecoration(
-                          labelText: "Auth Code",
+            child: RefreshIndicator(
+              onRefresh: () async => _startScan(),
+              child: _savedDevices.isNotEmpty
+                  ? ListView.builder(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _savedDevices.length,
+                      itemBuilder: (context, index) {
+                        final d = _savedDevices[index];
+                        final name = d['name'] ?? 'Unknown';
+                        final mac = d['mac'] ?? '';
+                        final rssi = d['rssi']?.toString() ?? '';
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.lock),
+                            title: Text(name),
+                            subtitle: Text(mac),
+                            trailing: Text('$rssi dBm'),
+                            onTap: () async {
+                              final res =
+                                  await Navigator.push<Map<String, dynamic>>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          DeviceDetailsScreen(device: d),
+                                    ),
+                                  );
+                              if (res != null && res['removed'] == true) {
+                                await _loadSavedDevices();
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('No saved devices.'),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  onPressed: _startScan,
+                                  child: const Text('Scan for devices'),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _dnaKeyController,
-                        decoration: const InputDecoration(labelText: "DNA Key"),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: _openLock,
-                  child: const Text("Open Lock"),
-                ),
-                const Divider(),
-                if (_buildConfig != null)
-                  Text(
-                    "Build Config: $_buildConfig",
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                const Divider(),
-                const Text(
-                  "Scan Results:",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                ..._scanResults.map(
-                  (d) => ListTile(
-                    title: Text(d['name'] ?? 'Unknown'),
-                    subtitle: Text(d['mac'] ?? ''),
-                    trailing: Text("${d['rssi']} dBm"),
-                    onTap: () {
-                      _macController.text = d['mac'];
-                    },
-                  ),
-                ),
-              ],
             ),
           ),
           Container(
-            height: 150,
+            height: 120,
             color: Colors.black12,
             padding: const EdgeInsets.all(8),
             width: double.infinity,
             child: SingleChildScrollView(child: Text(_log)),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final res = await Navigator.of(context).push<Map<String, dynamic>>(
+            MaterialPageRoute(builder: (_) => const AddDeviceScreen()),
+          );
+          if (res != null) {
+            await _loadSavedDevices();
+          }
+        },
+        tooltip: 'Add device',
+        child: const Icon(Icons.add),
       ),
     );
   }

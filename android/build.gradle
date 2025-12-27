@@ -1,61 +1,110 @@
+// Use plugins DSL; plugin versions are declared in settings.gradle.pluginManagement
+plugins {
+    // Do not specify versions here; versions are provided centrally via settings.gradle pluginManagement
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
+}
+
 group 'com.example.wise_apartment'
 version '1.0-SNAPSHOT'
 
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.0.0'
-    }
-}
-
-rootProject.allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-apply plugin: 'com.android.library'
-
 android {
     namespace 'com.example.wise_apartment'
-    compileSdk 33
+    compileSdk 34
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    
     defaultConfig {
         minSdk 21
-        
-        // --- BUILDFIELDS ---
-        buildConfigField "String", "BUILD_APPLICATION_ID", "\"${defaultConfig.namespace}\"" 
-        buildConfigField "String", "BUILD_NAMESPACE", "\"com.example.wise_apartment\""
-        buildConfigField "String", "BUILD_VERSION_NAME", "\"1.0.0\""
-        buildConfigField "String", "BUILD_VERSION_CODE", "\"100\""
-        buildConfigField "String", "BUILD_MIN_SDK", "\"21\""
-        buildConfigField "String", "BUILD_TARGET_SDK", "\"33\""
-        buildConfigField "String", "BUILD_COMPILE_SDK", "\"33\""
+        targetSdk 34
+
+        // // --- BUILDFIELDS ---
+        // buildConfigField "String", "BUILD_APPLICATION_ID", \"com.example.wise_apartment\"
+        // buildConfigField "String", "BUILD_NAMESPACE", \"com.example.wise_apartment\"
+        // buildConfigField "String", "BUILD_VERSION_NAME", \"1.0.0\"
+        // buildConfigField "String", "BUILD_VERSION_CODE", \"100\"
+        // buildConfigField "String", "BUILD_MIN_SDK", \"21\"
+        // buildConfigField "String", "BUILD_TARGET_SDK", \"34\"
+        // buildConfigField "String", "BUILD_COMPILE_SDK", \"34\"
+
+        multiDexEnabled true
     }
 
     buildFeatures {
         buildConfig true
+        viewBinding true
+        dataBinding true
     }
-    
+
     // For HXJ SDK AAR import
-    repositories {
-        flatDir {
-             dirs 'libs'
+    // Local AARs are included via implementation fileTree in dependencies; no project-level repositories required.
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+        disable 'MissingTranslation'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
 dependencies {
-    implementation name: 'hxjblinklibrary_2.5.0[19]_release_202407051548', ext: 'aar' 
-    implementation name: 'bleoad-release', ext: 'aar'
-    implementation name: 'dfu_release', ext: 'aar'
-    
-    // Transitive dependencies required by HXJ SDK usually
-    implementation 'androidx.appcompat:appcompat:1.4.2'
-    implementation 'com.google.android.material:material:1.6.1'
+    // Include local AAR/JAR dependencies in the plugin build
+    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+
+    // Core AndroidX
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
+
+    // SQLite native workaround for some platforms (as in app module)
+    kapt "org.xerial:sqlite-jdbc:3.36.0.1"
+
+    // Room components
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'
+
+
+    // Lifecycle components
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+
+
+
+    implementation 'androidx.recyclerview:recyclerview:1.1.0'
+
+    // Nordic BLE and logging
+    implementation 'no.nordicsemi.android.support.v18:scanner:1.6.0'
+    implementation 'no.nordicsemi.android:log:2.5.0'
+    implementation 'no.nordicsemi.android:ble:2.11.0'
+
+    // Removed unresolved external Android UI libraries to avoid build errors
+
     implementation 'com.google.code.gson:gson:2.8.6'
 }

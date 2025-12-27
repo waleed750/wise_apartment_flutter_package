@@ -135,4 +135,49 @@ public class BleLockManager {
             }
         });
     }
+
+    /**
+     * Notify device that pairing succeeded on the server side.
+     * Expects `args` to contain the auth fields used by PluginUtils.createAuthAction.
+     */
+    public void pairSuccessInd(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "pairSuccessInd called with args: " + args);
+        BlinkyAction hxBleAction = new BlinkyAction();
+        hxBleAction.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+        bleClient.pairSuccessInd(hxBleAction, true, new FunCallback() {
+            @Override
+            public void onResponse(Response response) {
+                // Disconnect first to allow future scans
+                bleClient.disConnectBle(null);
+
+                if (response.isSuccessful()) {
+                    // Optionally trigger rfModulePairing (as in sample app) but ignore its result here
+                    try {
+                        bleClient.rfModulePairing(hxBleAction, "", new FunCallback() {
+                            @Override
+                            public void onResponse(Response response) {
+                                Log.d(TAG, "rfModulePairing response: " + response.code());
+                            }
+
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                Log.d(TAG, "rfModulePairing failure: " + throwable.getMessage());
+                            }
+                        });
+                    } catch (Exception ignored) {}
+
+                    result.success(true);
+                } else {
+                    result.error("FAILED", "Code: " + response.code(), null);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                Log.e(TAG, "pairSuccessInd failed", t);
+                result.error("ERROR", t.getMessage(), null);
+            }
+        });
+    }
 }
