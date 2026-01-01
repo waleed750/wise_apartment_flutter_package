@@ -53,23 +53,50 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     try {
       final cipType = device.chipType ?? 0;
       final res = await _plugin.addDevice(mac, cipType);
-
       Map<String, dynamic>? toSave;
-      if (res is Map) {
-        toSave = Map<String, dynamic>.from(res);
-      } else if (res == true || res == 'ok' || res == 'true') {
-        toSave = device.toMap();
+
+      // Log for debugging
+      debugPrint('addDevice response map: $res');
+      final ok = res['ok'] as bool? ?? false;
+      final stage = res['stage'];
+      final responses = res['responses'];
+
+      if (ok) {
+        // prefer dnaInfo if provided
+        Object? dna = res['dnaInfo'];
+        if (dna == null && responses is Map) {
+          final addDev = responses['addDevice'];
+          if (addDev is Map) dna = addDev['body'];
+        }
+        if (dna is Map) {
+          toSave = Map<String, dynamic>.from(dna);
+        } else {
+          toSave = device.toMap();
+        }
+      } else {
+        // show a helpful message with stage and response code/message
+        String failedResp = '';
+        if (responses is Map) {
+          final key = stage is String ? stage : stage?.toString();
+          if (key != null && responses.containsKey(key)) {
+            final entry = responses[key];
+            failedResp = entry?.toString() ?? '';
+          } else {
+            failedResp = responses.toString();
+          }
+        } else {
+          failedResp = responses?.toString() ?? '';
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Add failed at $stage: $failedResp')),
+          );
+        }
       }
 
       if (toSave != null) {
         await SecureDeviceStorage.addDevice(toSave);
         if (mounted) Navigator.pop(context, toSave);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Add device failed: $res')));
-        }
       }
     } catch (e) {
       if (mounted) {

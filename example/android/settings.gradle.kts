@@ -17,6 +17,15 @@ pluginManagement {
     }
 }
 
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        // Local maven repo containing published vendor AARs from the plugin module
+        maven(url = uri("../../android/maven-repo"))
+    }
+}
+
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.12.2" apply false

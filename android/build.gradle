@@ -1,4 +1,7 @@
 // Use plugins DSL; plugin versions are declared in settings.gradle.pluginManagement
+// AGP forbids local .aar file dependencies when bundling an AAR, so vendor
+// .aar files are published into a local Maven repository and consumed as
+// Maven coordinates (see `maven-repo/`). This keeps the plugin reusable.
 plugins {
     // Do not specify versions here; versions are provided centrally via settings.gradle pluginManagement
     id 'com.android.library'
@@ -6,8 +9,6 @@ plugins {
     id 'org.jetbrains.kotlin.kapt'
     id 'maven-publish'
 }
-
-// apply plugin: 'maven-publish'
 
 group 'com.example.wise_apartment'
 version '1.0-SNAPSHOT'
@@ -50,7 +51,7 @@ android {
     }
 
     // For HXJ SDK AAR import
-    // Local AARs are included via implementation fileTree in dependencies; no project-level repositories required.
+    // We publish vendor AARs into `maven-repo/` and consume them via Maven coordinates.
 
     lint {
         abortOnError false
@@ -59,31 +60,33 @@ android {
     }
 
     buildTypes {
+        debug {
+            minifyEnabled false
+        }
         release {
-            minifyEnabled true
+            // Keep minification off for now to avoid stripping vendor code during testing.
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 
 // Use only Maven repositories, including the local one for the vendor AAR
-// repositories {
-//     google()
-//     mavenCentral()
-//     flatDir {
-//         dirs 'libs'
-//     }
-//     maven { 
-//         url uri("${project.projectDir}/maven-repo")
-//     }
-// }
+repositories {
+    google()
+    mavenCentral()
+    // Local maven repo created by the publishing task (android/maven-repo)
+    maven { url uri("${project.projectDir}/maven-repo") }
+}
 
 dependencies {
     // HXJ SDK and BLE dependencies
-    // Compile against vendor AARs only; consumers (apps) must provide the real AARs
-    // Use local AARs from android/libs for compilation only to avoid publishing
-    // vendor classes twice (as file + as published maven coordinates).
-    compileOnly fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+    // Consume vendor AARs as Maven coordinates from the local maven-repo so
+    // the plugin publishes the AARs and then depends on them via `api`.
+    // This prevents bundling raw .aar files inside the produced AAR.
+    api "com.hxj.vendor:hxjblinklibrary:2.5.0"
+    api "com.hxj.vendor:bleoad:1.0.0"
+    api "com.hxj.vendor:dfu:1.0.0"
     implementation "no.nordicsemi.android.support.v18:scanner:1.6.0"
     implementation "no.nordicsemi.android:log:2.5.0"
     implementation "no.nordicsemi.android:ble:2.11.0"
@@ -113,13 +116,14 @@ dependencies {
 
     // ...other dependencies...
     implementation 'com.google.code.gson:gson:2.8.6'
-    // Expose vendor artifacts as Maven coordinates after publishing them locally
-    // Do not expose the vendor AARs as API coordinates while developing locally
-    // to prevent apps from resolving both the file and published versions.
 }
 
-// Publishing local vendor AARs into android/maven-repo so the plugin can
-// depend on them via Maven coordinates. Run: ./gradlew publish
+// To publish/update vendor AARs into the local maven repo run from the
+// repository root or from the example/android folder:
+//
+// cd wise_apartment/example/android
+// ./gradlew :wise_apartment:publish
+//
 publishing {
     publications {
         hxjblinklibrary(MavenPublication) {
