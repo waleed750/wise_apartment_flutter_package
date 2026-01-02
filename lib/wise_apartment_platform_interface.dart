@@ -38,4 +38,12 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
 
   // New Methods from AddSecondFragment
   Future<Map<String, dynamic>> addDevice(String mac, int chipType);
+
+  /// Register/configure WiFi on the lock's RF module.
+  /// `wifiJson` is a JSON string containing the configuration payload.
+  /// `dna` contains the DNA info fields required to build the auth action.
+  Future<Map<String, dynamic>> registerWifi(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  );
 }

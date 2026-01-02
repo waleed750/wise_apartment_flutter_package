@@ -267,6 +267,13 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           result.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "regWifi":
+        if (lockManager != null) {
+          lockManager.registerWifi((Map<String, Object>) call.arguments, result);
+        } else {
+          result.error("INIT_ERROR", "Lock manager not initialized", null);
+        }
+        break;
       default:
         result.notImplemented();
         break;

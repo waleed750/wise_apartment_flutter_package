@@ -67,6 +67,14 @@ class MockWiseApartmentPlatform
   Future<Map<String, dynamic>> addDevice(String mac, int chipType) {
     return Future.value({});
   }
+
+  @override
+  Future<Map<String, dynamic>> registerWifi(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) {
+    return Future.value({});
+  }
 }
 
 void main() {

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'wise_apartment_platform_interface.dart';
+import 'dart:convert';
 export 'src/wise_apartment_exception.dart';
 export 'src/models/hxj_bluetooth_device_model.dart';
+export 'src/models/dna_info_model.dart';
 
 class WiseApartment {
   /// Returns the platform version (e.g. "Android 12", "iOS 15.0").
@@ -85,5 +87,15 @@ class WiseApartment {
 
   Future<Map<String, dynamic>> addDevice(String mac, int chipType) {
     return WiseApartmentPlatform.instance.addDevice(mac, chipType);
+  }
+
+  /// Register WiFi configuration on the lock's RF module.
+  /// `wifiConfig` is a Map containing the payload (SSID, Password, tokenId, etc).
+  /// `dna` is a Map with DNA fields required for auth (mac, authCode, dnaKey, protocolVer, ...).
+  Future<Map<String, dynamic>> registerWifi(
+    String wifiConfig,
+    Map<String, dynamic> dna,
+  ) {
+    return WiseApartmentPlatform.instance.registerWifi(wifiConfig, dna);
   }
 }

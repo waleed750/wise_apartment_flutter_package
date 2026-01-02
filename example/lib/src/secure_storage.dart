@@ -23,7 +23,7 @@ class SecureDeviceStorage {
 
   static Future<void> addDevice(Map<String, dynamic> device) async {
     final devices = await loadDevices();
-    devices.removeWhere((d) => d['mac'] == device['mac']);
+    // devices.removeWhere((d) => d['mac'] == device['mac']);
     devices.add(device);
     await saveDevices(devices);
   }

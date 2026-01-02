@@ -23,6 +23,7 @@ class _MyAppState extends State<MyApp> {
 
   String _log = "";
   List<Map<String, dynamic>> _scanResults = [];
+  // Each saved device entry contains the original map ('raw') and parsed DNA model ('dna')
   List<Map<String, dynamic>> _savedDevices = [];
   Map<String, dynamic>? _buildConfig;
 
@@ -39,95 +40,57 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initBle() async {
+    // Minimal BLE init helper: check permissions and bluetooth adapter state
     try {
-      final res = await _plugin.initBleClient();
-      _addLog("BLE Init Result: $res");
+      final perms = <Permission>[];
+      // Add common permissions; on older Android some are ignored
+      perms.addAll([
+        Permission.location,
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+      ]);
+
+      bool allGranted = true;
+      for (final p in perms) {
+        final status = await p.status;
+        if (!status.isGranted) {
+          final req = await p.request();
+          if (!req.isGranted) {
+            allGranted = false;
+            break;
+          }
+        }
+      }
+
+      if (!allGranted) {
+        _addLog('Permissions not granted. Please allow Bluetooth permissions.');
+        return;
+      }
+
+      final btOn = await FlutterBluePlus.isOn;
+      if (btOn == false) {
+        _addLog('Bluetooth is disabled. Please enable Bluetooth.');
+        return;
+      }
+
+      _addLog('BLE initialized and ready.');
     } catch (e) {
-      _addLog("Init Error: $e");
+      _addLog('BLE init failed: $e');
     }
   }
 
   Future<void> _startScan() async {
-    _addLog("Checking permissions and Bluetooth state before scanning...");
-
-    // Request required permissions
     try {
-      // On Android we need location and bluetooth permissions
-      if (Platform.isAndroid) {
-        final permissions = <Permission>[
-          Permission.location,
-          Permission.bluetooth,
-          Permission.bluetoothScan,
-          Permission.bluetoothConnect,
-        ];
-
-        final statuses = await permissions.request();
-
-        // If any required permission is denied, prompt the user
-        bool allGranted = true;
-        // for (final p in permissions) {
-        //   final s = await p.status;
-        //   log('Permission ${p.toString()}: ${s.toString()}');
-        //   if (!s.isGranted) {
-        //     allGranted = false;
-        //     break;
-        //   }
-        // }
-
-        if (!allGranted) {
-          _addLog(
-            'Permissions not granted. Request permissions in app settings.',
-          );
-          final open = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Permissions required'),
-              content: const Text(
-                'Bluetooth and Location permissions are required to scan for devices.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Open Settings'),
-                ),
-              ],
-            ),
-          );
-          if (open == true) openAppSettings();
-          return;
-        }
-      }
-
-      // Check Bluetooth adapter state
-      final btOn = await FlutterBluePlus.isOn;
-      if (btOn == false) {
-        _addLog('Bluetooth is disabled. Please enable Bluetooth to scan.');
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Bluetooth disabled'),
-            content: const Text('Please enable Bluetooth to scan for devices.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
+      // Ensure permissions and adapter state via _initBle
+      await _initBle();
 
       _addLog('Starting Scan...');
       final results = await _plugin.startScan(timeoutMs: 5000);
       setState(() {
-        _scanResults = results;
+        _scanResults = results ?? [];
       });
-      _addLog('Scan Complete. Found: ${results.length} devices.');
+      _addLog('Scan Complete. Found: ${results?.length ?? 0} devices.');
     } catch (e) {
       _addLog('Scan Failed: $e');
     }
@@ -177,7 +140,10 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _loadSavedDevices() async {
     final devices = await SecureDeviceStorage.loadDevices();
-    setState(() => _savedDevices = devices);
+    final list = devices
+        .map((m) => {'raw': m, 'dna': DnaInfoModel.fromMap(m)})
+        .toList();
+    setState(() => _savedDevices = list);
   }
 
   @override
@@ -213,16 +179,35 @@ class _MyAppState extends State<MyApp> {
                       padding: const EdgeInsets.all(8),
                       itemCount: _savedDevices.length,
                       itemBuilder: (context, index) {
-                        final d = _savedDevices[index];
-                        final name = d['name'] ?? 'Unknown';
-                        final mac = d['mac'] ?? '';
-                        final rssi = d['rssi']?.toString() ?? '';
+                        final entry = _savedDevices[index];
+                        final Map<String, dynamic> raw =
+                            Map<String, dynamic>.from(entry['raw'] ?? {});
+                        final DnaInfoModel d = entry['dna'] as DnaInfoModel;
+                        final displayName = raw['name'] as String?;
+                        final mac = d.mac ?? '';
+                        final rssi =
+                            raw['rssi']?.toString() ??
+                            raw['RSSI']?.toString() ??
+                            '';
+                        final protocol = d.protocolVer?.toString() ?? 'N/A';
+                        final deviceType = d.deviceType?.toString() ?? 'N/A';
                         return Card(
                           child: ListTile(
                             leading: const Icon(Icons.lock),
-                            title: Text(name),
-                            subtitle: Text(mac),
-                            trailing: Text('$rssi dBm'),
+                            title: Text(displayName ?? mac ?? 'Unknown'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (displayName != null) Text(mac),
+                                if (rssi.isNotEmpty) Text('$rssi dBm'),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Protocol: $protocol • Type: $deviceType',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            isThreeLine: true,
                             onTap: () async {
                               final res =
                                   await Navigator.push<Map<String, dynamic>>(

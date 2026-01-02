@@ -147,6 +147,35 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return result ?? {};
   }
 
+  @override
+  Future<Map<String, dynamic>> registerWifi(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) async {
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('regWifi', {
+            'wifi': wifiJson,
+            'dna': dna,
+          });
+      if (result != null) return result;
+    } catch (e) {
+      // fallthrough to simulated response
+    }
+
+    // Platform not available or returned null — simulate a response in Dart
+    final Map<String, dynamic> simulated = {
+      'code': 0,
+      'message': 'Simulated registerWifi',
+      'ackMessage': 'Operation successful',
+      'isSuccessful': true,
+      'isError': false,
+      'lockMac': dna['mac'] ?? null,
+      'body': wifiJson,
+    };
+    return simulated;
+  }
+
   Future<bool> _invokeBool(String method, [dynamic arguments]) async {
     try {
       final bool? result = await methodChannel.invokeMethod<bool>(

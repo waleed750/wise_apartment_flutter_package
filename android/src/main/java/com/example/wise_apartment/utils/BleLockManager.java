@@ -16,6 +16,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleSetHotelLockSystemAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleHotelLockSystemParam;
 import java.util.HashMap;
+import org.json.JSONObject;
 
 public class BleLockManager {
     private static final String TAG = "BleLockManager";
@@ -25,36 +26,31 @@ public class BleLockManager {
     private Map<String, Object> responseToMap(Response<?> response, Object bodyObj) {
         Map<String, Object> m = new HashMap<>();
         if (response == null) return m;
-        int codeVal = -1;
-        try { codeVal = response.code(); m.put("code", codeVal); } catch (Throwable ignored) {}
-        try {
-            String msg = null;
-            try { msg = response.message(); } catch (Throwable t) { msg = null; }
-            m.put("message", msg);
-        } catch (Throwable ignored) {}
-        try { m.put("ackMessage", ackMessageForCode(codeVal)); } catch (Throwable ignored) {}
-        try { m.put("isSuccessful", response.isSuccessful()); } catch (Throwable ignored) {}
-        try { m.put("isError", response.isError()); } catch (Throwable ignored) {}
-        try { m.put("lockMac", response.getLockMac()); } catch (Throwable ignored) {}
+        // Use safe getters to avoid repetitive try/catch per-field
+        Integer codeVal = getSafe("response.code", () -> response.code(), -1);
+        m.put("code", codeVal);
+        putSafe(m, "message", () -> response.message());
+        try { m.put("ackMessage", ackMessageForCode(codeVal)); } catch (Exception e) { Log.w(TAG, "Failed to compute ackMessage", e); m.put("ackMessage", null); }
+        putSafe(m, "isSuccessful", () -> response.isSuccessful());
+        putSafe(m, "isError", () -> response.isError());
+        putSafe(m, "lockMac", () -> response.getLockMac());
 
         // body conversion
         if (bodyObj != null) {
             m.put("body", bodyObj);
         } else {
-            try {
-                Object body = response.body();
-                if (body == null) {
-                    m.put("body", null);
-                } else if (body instanceof DnaInfo) {
-                    m.put("body", dnaInfoToMap((DnaInfo) body));
-                } else if (body instanceof SysParamResult) {
-                    m.put("body", sysParamToMap((SysParamResult) body));
-                } else if (body instanceof HxBLEUnlockResult) {
-                    try { m.put("body", body.toString()); } catch (Throwable t) { m.put("body", null); }
-                } else {
-                    try { m.put("body", body.toString()); } catch (Throwable t) { m.put("body", null); }
-                }
-            } catch (Throwable ignored) { m.put("body", null); }
+            Object body = null;
+            try { body = response.body(); } catch (Exception e) { Log.w(TAG, "Failed to read response.body", e); body = null; }
+
+            if (body == null) {
+                m.put("body", null);
+            } else if (body instanceof DnaInfo) {
+                m.put("body", dnaInfoToMap((DnaInfo) body));
+            } else if (body instanceof SysParamResult) {
+                m.put("body", sysParamToMap((SysParamResult) body));
+            } else {
+                try { m.put("body", body.toString()); } catch (Exception e) { Log.w(TAG, "Failed to stringify body", e); m.put("body", null); }
+            }
         }
 
         return m;
@@ -63,27 +59,77 @@ public class BleLockManager {
     private Map<String, Object> dnaInfoToMap(DnaInfo dna) {
         Map<String, Object> m = new HashMap<>();
         if (dna == null) return m;
-        try { m.put("mac", dna.getMac()); } catch (Throwable ignored) {}
-        try { m.put("protocolVer", dna.getProtocolVer()); } catch (Throwable ignored) {}
-        try { m.put("authorizedRoot", dna.getAuthorizedRoot()); } catch (Throwable ignored) {}
-        try { m.put("dnaAes128Key", dna.getDnaAes128Key()); } catch (Throwable ignored) {}
-        // Include native/server payload string if available
-        try { m.put("deviceDnaInfoStr", dna.getDeviceDnaInfoStr()); } catch (Throwable ignored) {}
-        // Try to include other helpful fields if present in vendor class
-        try { m.put("deviceType", dna.getDeviceType()); } catch (Throwable ignored) {}
-        try { m.put("hardware", dna.getHardWareVer()); } catch (Throwable ignored) {}
-        try { m.put("software", dna.getSoftWareVer()); } catch (Throwable ignored) {}
-        try { m.put("rFModuleType", dna.getrFMoudleType()); } catch (Throwable ignored) {}
-        try { m.put("rFModuleMac", dna.getRFModuleMac()); } catch (Throwable ignored) {}
+        putSafe(m, "mac", () -> dna.getMac());
+        putSafe(m, "initTag", () -> dna.getInitTag());
+        putSafe(m, "deviceType", () -> dna.getDeviceType());
+        putSafe(m, "hardware", () -> dna.getHardWareVer());
+        putSafe(m, "software", () -> dna.getSoftWareVer());
+        putSafe(m, "protocolVer", () -> dna.getProtocolVer());
+        putSafe(m, "appCmdSets", () -> dna.getAppCmdSets());
+        putSafe(m, "dnaAes128Key", () -> dna.getDnaAes128Key());
+        putSafe(m, "authorizedRoot", () -> dna.getAuthorizedRoot());
+        putSafe(m, "authorizedUser", () -> dna.getAuthorizedUser());
+        putSafe(m, "authorizedTempUser", () -> dna.getAuthorizedTempUser());
+        putSafe(m, "rFModuleType", () -> dna.getrFMoudleType());
+        putSafe(m, "lockFunctionType", () -> dna.getLockFunctionType());
+        putSafe(m, "maximumVolume", () -> dna.getMaximumVolume());
+        putSafe(m, "maximumUserNum", () -> dna.getMaximumUserNum());
+        putSafe(m, "menuFeature", () -> dna.getMenuFeature());
+        putSafe(m, "fingerPrintfNum", () -> dna.getFingerPrintfNum());
+        putSafe(m, "projectID", () -> dna.getProjectID());
+        putSafe(m, "rFModuleMac", () -> dna.getRFModuleMac());
+        putSafe(m, "motorDriverMode", () -> dna.getMotorDriverMode());
+        putSafe(m, "motorSetMenuFunction", () -> dna.getMotorSetMenuFunction());
+        putSafe(m, "MoudleFunction", () -> dna.getMoudleFunction());
+        putSafe(m, "BleActiveTimes", () -> dna.getBleActiveTimes());
+        putSafe(m, "ModuleSoftwareVer", () -> dna.getModuleSoftwareVer());
+        putSafe(m, "ModuleHardwareVer", () -> dna.getModuleHardwareVer());
+        putSafe(m, "passwordNumRange", () -> dna.getPasswordNumRange());
+        putSafe(m, "OfflinePasswordVer", () -> dna.getOfflinePasswordVer());
+        putSafe(m, "supportSystemLanguage", () -> dna.getSupportSystemLanguage());
+        putSafe(m, "hotelFunctionEn", () -> dna.getHotelFunctionEn());
+        putSafe(m, "schoolOpenNormorl", () -> dna.getSchoolOpenNormorl());
+        putSafe(m, "cabinetLock", () -> dna.getCabinetLock());
+        putSafe(m, "lockSystemFunction", () -> dna.getLockSystemFunction());
+        putSafe(m, "lockNetSystemFunction", () -> dna.getLockNetSystemFunction());
+        putSafe(m, "sysLanguage", () -> dna.getSysLanguage());
+        putSafe(m, "keyAddMenuType", () -> dna.getKeyAddMenuType());
+        putSafe(m, "functionFlag", () -> dna.getFunctionFlag());
+        putSafe(m, "bleSmartCardNfcFunction", () -> dna.getBleSmartCardNfcFunction());
+        putSafe(m, "wisapartmentCardFunction", () -> dna.getWisapartmentCardFunction());
+        putSafe(m, "lockCompanyId", () -> dna.getLockCompanyId());
+        putSafe(m, "deviceDnaInfoStr", () -> dna.getDeviceDnaInfoStr());
         return m;
     }
 
     private Map<String, Object> sysParamToMap(SysParamResult s) {
         Map<String, Object> m = new HashMap<>();
         if (s == null) return m;
-        try { m.put("raw", s.toString()); } catch (Throwable ignored) {}
-        try { m.put("deviceStatusStr", s.getDeviceStatusStr()); } catch (Throwable ignored) {}
+        putSafe(m, "raw", () -> s.toString());
+        putSafe(m, "deviceStatusStr", () -> s.getDeviceStatusStr());
         return m;
+    }
+
+    // Small functional getter that can throw; allows central Exception handling and logging
+    private interface Getter<T> { T get() throws Exception; }
+
+    private <T> void putSafe(Map<String, Object> m, String key, Getter<T> getter) {
+        try {
+            T val = getter.get();
+            m.put(key, val);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to read key: " + key, e);
+            m.put(key, null);
+        }
+    }
+
+    private <T> T getSafe(String label, Getter<T> getter, T fallback) {
+        try {
+            return getter.get();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to read: " + label, e);
+            return fallback;
+        }
     }
 
     // Map numeric ACK/status codes to human-readable messages
@@ -230,12 +276,10 @@ public class BleLockManager {
             @Override
             public void onResponse(Response<DnaInfo> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    Map<String, Object> res = new HashMap<>();
-                    DnaInfo dna = response.body();
-                    res.put("mac", dna.getMac());
-                    result.success(res);
+                    // Return the full DNA info mapped via dnaInfoToMap (through responseToMap)
+                    result.success(responseToMap(response, null));
                 } else {
-                     result.error("FAILED", "Code: " + response.code(), null);
+                    result.error("FAILED", "Code: " + response.code(), null);
                 }
             }
             @Override
@@ -500,5 +544,104 @@ public class BleLockManager {
                 result.error("ERROR", t.getMessage(), null);
             }
         });
+    }
+
+    /**
+     * Register/configure WiFi on the lock's RF module.
+     * Expects `args` to contain:
+     *  - "wifi": JSON string (or Map) with configuration fields (SSID, Password, tokenId, etc.)
+     *  - "dna": Map with dna fields (protocolVer, authorizedRoot, dnaAes128Key, mac)
+     */
+    public void registerWifi(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "registerWifi called with args: " + args);
+
+        String wifiJson = null;
+        if (args != null && args.containsKey("wifi")) {
+            Object w = args.get("wifi");
+            if (w instanceof String) {
+                wifiJson = (String) w;
+            }else {
+                wifiJson = w != null ? w.toString() : "";
+            }
+        }
+
+        if (wifiJson == null) {
+            result.error("INVALID_ARGS", "Missing wifi payload (wifi) in args", null);
+            return;
+        }
+
+        // Prefer building BlinkyAuthAction from a provided mac (device mac)
+        com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction baseAuth = null;
+        try {
+            String macFromArgs = null;
+            if (args != null) {
+                Object m = args.get("mac");
+                if (m instanceof String) macFromArgs = (String) m;
+                else if (args.containsKey("device") && args.get("device") instanceof Map) {
+                    Object dev = ((Map) args.get("device")).get("mac");
+                    if (dev instanceof String) macFromArgs = (String) dev;
+                }
+            }
+
+            if (macFromArgs != null && !macFromArgs.isEmpty()) {
+                baseAuth = new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder()
+                        .mac(macFromArgs)
+                        .build();
+            } else if (args != null && args.containsKey("dna") && args.get("dna") instanceof Map) {
+                Map dnaMap = (Map) args.get("dna");
+                com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder b =
+                        new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder();
+
+                Object v;
+                v = dnaMap.get("protocolVer");
+                if (v instanceof Integer) b.bleProtocolVer((Integer) v);
+                else if (v instanceof String) { try { b.bleProtocolVer(Integer.parseInt((String) v)); } catch (Exception ignored) {} }
+
+                v = dnaMap.get("authorizedRoot");
+                if (v instanceof String) b.authCode((String) v);
+
+                v = dnaMap.get("dnaAes128Key");
+                if (v instanceof String) b.dnaKey((String) v);
+
+                v = dnaMap.get("mac");
+                if (v instanceof String) b.mac((String) v);
+
+                // use default keyGroupId 900 as in addDevice flow
+                b.keyGroupId(900);
+                baseAuth = b.build();
+            } else {
+                // fallback: use PluginUtils.createAuthAction to build from top-level args
+                baseAuth = PluginUtils.createAuthAction(args);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to build baseAuth from dna map or mac, falling back", t);
+            baseAuth = PluginUtils.createAuthAction(args);
+        }
+
+        BlinkyAction action = new BlinkyAction();
+        action.setBaseAuthAction(baseAuth);
+
+        try {
+            bleClient.rfModuleReg(action, wifiJson, new FunCallback() {
+                @Override
+                public void onResponse(Response rfResp) {
+                    try {
+                        Map<String, Object> out = responseToMap(rfResp, null);
+                        result.success(out);
+                    } catch (Throwable t) {
+                        result.error("ERROR", t.getMessage(), null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "rfModuleReg failed", t);
+                    result.error("ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling rfModuleReg", t);
+            result.error("ERROR", t.getMessage(), null);
+        }
     }
 }
