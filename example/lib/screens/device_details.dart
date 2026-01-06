@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
+import '../src/config.dart';
+import '../src/api_service.dart';
 // wifi info removed; default SSID/password used instead
 
 class DeviceDetailsScreen extends StatefulWidget {
@@ -14,31 +16,23 @@ class DeviceDetailsScreen extends StatefulWidget {
 
 class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   final _plugin = WiseApartment();
+
   bool _busy = false;
-  // WiFi form controllers
-  final TextEditingController _ssidController = TextEditingController(
-    text: 'Home',
-  );
-  final TextEditingController _passwordController = TextEditingController(
-    text: '123456789@Home',
-  );
-  bool _showPassword = false;
+  // Centralized form state for WiFi inputs and UI flags.
+  // Grouping controllers makes lifecycle management and usage clearer.
+  final _form = _FormState();
 
   Future<void> _openLock() async {
     setState(() => _busy = true);
-    final auth = {
-      'mac': widget.device.mac,
-      'authCode': widget.device.authorizedRoot ?? '',
-      'dnaKey': widget.device.dnaAes128Key ?? '',
-      'keyGroupId': 1,
-      'bleProtocolVer': 2,
-    };
+    final auth = widget.device.toMap();
     try {
       final ok = await _plugin.openLock(auth);
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Open: $ok')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Open error: $e')));
@@ -49,19 +43,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
   Future<void> _closeLock() async {
     setState(() => _busy = true);
-    final auth = {
-      'mac': widget.device.mac,
-      'authCode': widget.device.authorizedRoot ?? '',
-      'dnaKey': widget.device.dnaAes128Key ?? '',
-      'keyGroupId': 1,
-      'bleProtocolVer': 2,
-    };
+    final auth = widget.device.toMap();
     try {
       final ok = await _plugin.closeLock(auth);
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Close: $ok')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Close error: $e')));
@@ -72,19 +62,43 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
   Future<void> _deleteLock() async {
     setState(() => _busy = true);
-    final auth = {
-      'mac': widget.device.mac,
-      'authCode': widget.device.authorizedRoot ?? '',
-      'dnaKey': widget.device.dnaAes128Key ?? '',
-      'keyGroupId': 1,
-      'bleProtocolVer': 2,
-    };
+    final auth = widget.device.toMap();
     try {
       final ok = await _plugin.deleteLock(auth);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete: $ok')));
+      if (ok == true) {
+        // remove from secure storage
+        try {
+          await SecureDeviceStorage.removeDevice(widget.device.mac ?? '');
+        } catch (_) {}
+
+        // show confirmation and pop back with info
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Device deleted'),
+            content: const Text(
+              'The device was deleted and removed from storage.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        if (!mounted) return;
+        Navigator.pop(context, {'removed': true, 'mac': widget.device.mac});
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $ok')));
+      }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Delete error: $e')));
@@ -96,26 +110,49 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   Future<void> _registerWifi() async {
     setState(() => _busy = true);
 
-    // Default host:port when not provided
-    const defaultHost = '34.166.141.220';
-    const defaultPort = '8090';
+    // Default host/port are centralized in `ExampleConfig` so they
+    // can be changed in one place for the whole example app.
+    final defaultHost = ExampleConfig.defaultHost;
+    final defaultPort = ExampleConfig.defaultPort;
+    // Build WifiConfig from centralized form state
+    String tokenIdVal = '';
+    if (_form.configurationType == WifiConfigurationType.wifiOnly) {
+      tokenIdVal = '';
+    } else {
+      // Obtain a lock-specific token via platform APIs (hidden from user).
+      final lockToken = await ApiService.instance.getLockTokenForDevice(
+        widget.device,
+      );
+      tokenIdVal = lockToken ?? _form.tokenIdController.text.trim();
+    }
+    final serverAddrVal = _form.serverAddressController.text.trim().isEmpty
+        ? defaultHost
+        : _form.serverAddressController.text.trim();
+    final serverPortVal = _form.serverPortController.text.trim().isEmpty
+        ? defaultPort
+        : _form.serverPortController.text.trim();
 
     final wifiModel = WifiConfig(
-      ssid: _ssidController.text.trim(),
-      password: _passwordController.text,
-      serverAddress: defaultHost,
-      serverPort: defaultPort,
+      ssid: _form.ssidController.text.trim(),
+      password: _form.passwordController.text,
+      serverAddress: serverAddrVal,
+      serverPort: serverPortVal,
+      configurationType: _form.configurationType,
+      tokenId: tokenIdVal,
+      updateToken: _form.updateTokenSelection,
     );
 
     // Pass the full DnaInfoModel map to native side to avoid losing fields.
-    final dna = widget.device.toMap();
+    final dna = widget.device.toMap(); // pass full dna map to native side
 
     try {
       final res = await _plugin.registerWifi(wifiModel.toRfCodeString(), dna);
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('regWifi: ${res.toString()}')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('regWifi error: $e')));
@@ -124,10 +161,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     }
   }
 
-  Future<void> _removeFromStorage() async {
-    await SecureDeviceStorage.removeDevice(widget.device.mac ?? '');
-    Navigator.pop(context, {'removed': true, 'mac': widget.device.mac});
-  }
+  // Removed _removeFromStorage helper — deletion now removes from storage
 
   @override
   Widget build(BuildContext context) {
@@ -173,42 +207,113 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // Row(
+            //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
 
-              children: [
-                ElevatedButton(
-                  onPressed: _removeFromStorage,
-                  child: const Text('Remove from app'),
-                ),
-              ],
-            ),
+            //   children: [
+            //     ElevatedButton(
+            //       onPressed: _removeFromStorage,
+            //       child: const Text('Remove from app'),
+            //     ),
+            //   ],
+            // ),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: Column(
                 children: [
+                  // WiFi SSID input
                   TextField(
-                    controller: _ssidController,
+                    controller: _form.ssidController,
                     decoration: const InputDecoration(labelText: 'WiFi SSID'),
                   ),
                   const SizedBox(height: 8),
+                  // WiFi password input with show/hide toggle
                   TextField(
-                    controller: _passwordController,
+                    controller: _form.passwordController,
                     decoration: InputDecoration(
                       labelText: 'WiFi Password',
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _showPassword
+                          _form.showPassword
                               ? Icons.visibility_off
                               : Icons.visibility,
                         ),
-                        onPressed: () =>
-                            setState(() => _showPassword = !_showPassword),
+                        onPressed: () => setState(
+                          () => _form.showPassword = !_form.showPassword,
+                        ),
                       ),
                     ),
-                    obscureText: !_showPassword,
+                    obscureText: !_form.showPassword,
                   ),
+                  const SizedBox(height: 8),
+                  // Configuration type dropdown (placed above Token ID)
+                  DropdownButtonFormField<WifiConfigurationType>(
+                    initialValue: _form.configurationType,
+                    items: const [
+                      DropdownMenuItem(
+                        value: WifiConfigurationType.serverOnly,
+                        child: Text('Server only'),
+                      ),
+                      DropdownMenuItem(
+                        value: WifiConfigurationType.wifiOnly,
+                        child: Text('WiFi only'),
+                      ),
+                      DropdownMenuItem(
+                        value: WifiConfigurationType.wifiAndServer,
+                        child: Text('WiFi and Server'),
+                      ),
+                    ],
+                    onChanged: (v) => setState(
+                      () => _form.configurationType =
+                          v ?? WifiConfigurationType.wifiOnly,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Configuration Type',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Only show Token ID and Server fields when not WiFi-only
+                  if (_form.configurationType !=
+                      WifiConfigurationType.wifiOnly) ...[
+                    // Token acquisition is handled automatically on Register.
+                    // Server address and port inputs
+                    TextField(
+                      controller: _form.serverAddressController,
+                      decoration: const InputDecoration(
+                        labelText: 'Server Address',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _form.serverPortController,
+                      decoration: const InputDecoration(
+                        labelText: 'Server Port',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  // Update token dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: _form.updateTokenSelection,
+                    items: const [
+                      DropdownMenuItem(
+                        value: '01',
+                        child: Text('Update token'),
+                      ),
+                      DropdownMenuItem(
+                        value: '02',
+                        child: Text('Do not update'),
+                      ),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _form.updateTokenSelection = v ?? '02'),
+                    decoration: const InputDecoration(
+                      labelText: 'Update Token',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   const SizedBox(height: 8),
                   const Text(
                     'Server and port default to http://34.166.141.220:8090',
@@ -229,5 +334,46 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    // Clean up controllers in the centralized form state
+    _form.dispose();
+    super.dispose();
+  }
+
+  // Helper to build the auth map for native calls from the current device
+}
+
+// Centralized container for form state (controllers and flags).
+// Keeps this state isolated and makes lifecycle management straightforward.
+class _FormState {
+  final TextEditingController ssidController = TextEditingController(
+    text: ExampleConfig.defaultSsid,
+  );
+  final TextEditingController passwordController = TextEditingController(
+    text: ExampleConfig.defaultPassword,
+  );
+  final TextEditingController tokenIdController = TextEditingController(
+    text: 'EemUAotGmkeAelOLKqBHBA==',
+  );
+  final TextEditingController serverAddressController = TextEditingController(
+    text: ExampleConfig.defaultHost,
+  );
+  final TextEditingController serverPortController = TextEditingController(
+    text: ExampleConfig.defaultPort,
+  );
+  bool showPassword = false;
+  // '01' => update, '02' => do not update
+  String updateTokenSelection = '01';
+  WifiConfigurationType configurationType = WifiConfigurationType.wifiAndServer;
+
+  void dispose() {
+    ssidController.dispose();
+    passwordController.dispose();
+    tokenIdController.dispose();
+    serverAddressController.dispose();
+    serverPortController.dispose();
   }
 }

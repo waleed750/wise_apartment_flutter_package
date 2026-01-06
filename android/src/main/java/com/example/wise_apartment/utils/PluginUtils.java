@@ -13,12 +13,28 @@ public class PluginUtils {
         if (args == null) return builder.build();
 
         Object v;
+        // Support two input shapes:
+        // 1) auth map with keys: authCode, dnaKey, mac, keyGroupId, bleProtocolVer
+        // 2) dna info map produced by DnaInfoModel.toMap() with keys like
+        //    'authorizedRoot', 'dnaAes128Key', 'mac', 'protocolVer', etc.
+
+        // authCode: prefer explicit authCode, otherwise look for authorizedRoot
         v = args.get("authCode");
         if (v instanceof String) builder.authCode((String) v);
+        else {
+            v = args.get("authorizedRoot");
+            if (v instanceof String) builder.authCode((String) v);
+        }
 
+        // dnaKey: prefer explicit dnaKey, otherwise look for dnaAes128Key
         v = args.get("dnaKey");
         if (v instanceof String) builder.dnaKey((String) v);
+        else {
+            v = args.get("dnaAes128Key");
+            if (v instanceof String) builder.dnaKey((String) v);
+        }
 
+        // mac is common in both shapes
         v = args.get("mac");
         if (v instanceof String) builder.mac((String) v);
 
@@ -30,8 +46,9 @@ public class PluginUtils {
             }
         }
 
-        if (args.containsKey("bleProtocolVer")) {
-            v = args.get("bleProtocolVer");
+        // bleProtocolVer: explicit key or from dna map 'protocolVer'
+        if (args.containsKey("bleProtocolVer") || args.containsKey("protocolVer")) {
+            v = args.containsKey("bleProtocolVer") ? args.get("bleProtocolVer") : args.get("protocolVer");
             if (v instanceof Integer) builder.bleProtocolVer((Integer) v);
             else if (v instanceof String) {
                 try { builder.bleProtocolVer(Integer.parseInt((String) v)); } catch (Exception ignored) {}

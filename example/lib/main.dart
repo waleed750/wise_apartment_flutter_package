@@ -136,6 +136,143 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _loadSavedDevices();
+    // Run after first frame so dialogs can use context safely.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _ensurePermissionsAndServices(),
+    );
+  }
+
+  /// Ensure required permissions and services (Bluetooth, Location) are enabled on app start.
+  Future<void> _ensurePermissionsAndServices() async {
+    try {
+      // Request runtime permissions.
+      final perms = <Permission>[
+        Permission.location,
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+      ];
+
+      bool allGranted = true;
+      for (final p in perms) {
+        final status = await p.status;
+        if (!status.isGranted) {
+          final req = await p.request();
+          if (!req.isGranted) {
+            allGranted = false;
+            break;
+          }
+        }
+      }
+
+      if (!allGranted) {
+        if (!mounted) return;
+        final retry = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Permissions required'),
+            content: const Text(
+              'This app requires Bluetooth and Location permissions to function. Open app settings to enable them, or retry.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Open Settings'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        );
+        if (retry == true) {
+          await _ensurePermissionsAndServices();
+        } else {
+          openAppSettings();
+        }
+        return;
+      }
+      final state = await FlutterBluePlus.adapterState.first;
+      // Check Bluetooth adapter state
+      if (state == BluetoothAdapterState.off) {
+        // Try to enable Bluetooth programmatically (may not be supported on all platforms)
+        try {
+          await FlutterBluePlus.turnOn();
+        } catch (_) {}
+
+        // Re-check status after attempting to turn on
+        final newState = await FlutterBluePlus.adapterState.first;
+        if (newState == BluetoothAdapterState.off) {
+          if (!mounted) return;
+          final retry = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Enable Bluetooth'),
+              content: const Text(
+                'Bluetooth is disabled. Please enable Bluetooth in system settings and retry.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Open Settings'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+          if (retry == true) {
+            await _ensurePermissionsAndServices();
+          } else {
+            openAppSettings();
+          }
+          return;
+        }
+      }
+
+      // Check location service (GPS) status where available.
+      final serviceStatus = await Permission.location.serviceStatus;
+      if (serviceStatus != ServiceStatus.enabled) {
+        if (!mounted) return;
+        final retry = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Enable Location Services'),
+            content: const Text(
+              'Location services are disabled. Please enable location services and retry.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Open Settings'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        );
+        if (retry == true) {
+          await _ensurePermissionsAndServices();
+        } else {
+          openAppSettings();
+        }
+        return;
+      }
+
+      _addLog(
+        'Startup checks passed: permissions, Bluetooth, and Location OK.',
+      );
+    } catch (e) {
+      _addLog('Startup checks failed: $e');
+    }
   }
 
   Future<void> _loadSavedDevices() async {

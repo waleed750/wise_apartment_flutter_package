@@ -1,9 +1,13 @@
 package com.example.wise_apartment.utils;
 
 import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
 import java.util.Map;
 
 import io.flutter.plugin.common.MethodChannel.Result;
+
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockRecordAction;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
 import com.example.hxjblinklibrary.blinkble.entity.Response;
@@ -132,6 +136,25 @@ public class BleLockManager {
         }
     }
 
+    // Helper to ensure MethodChannel.Result callbacks run on the main thread.
+    private void postResultSuccess(final Result result, final Object value) {
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                try { result.success(value); } catch (Exception e) { Log.w(TAG, "result.success threw", e); }
+            }
+        });
+    }
+
+    private void postResultError(final Result result, final String code, final String message, final Object details) {
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                try { result.error(code, message, details); } catch (Exception e) { Log.w(TAG, "result.error threw", e); }
+            }
+        });
+    }
+
     // Map numeric ACK/status codes to human-readable messages
     private String ackMessageForCode(int code) {
         switch (code) {
@@ -206,7 +229,7 @@ public class BleLockManager {
 
     public void closeLock(Map<String, Object> args, final Result result) {
         Log.d(TAG, "closeLock called");
-        BlinkyAction action = new BlinkyAction();
+        BlinkyAction action = new OpenLockAction();
         action.setBaseAuthAction(PluginUtils.createAuthAction(args));
         
         bleClient.closeLock(action, new FunCallback<Object>() {
@@ -621,27 +644,35 @@ public class BleLockManager {
         BlinkyAction action = new BlinkyAction();
         action.setBaseAuthAction(baseAuth);
 
+        SyncLockRecordAction syncLockRecordAction = new SyncLockRecordAction(
+                0,
+                10,
+                1
+        );
+        syncLockRecordAction.setBaseAuthAction(baseAuth);
+
         try {
+
             bleClient.rfModuleReg(action, wifiJson, new FunCallback() {
                 @Override
                 public void onResponse(Response rfResp) {
                     try {
                         Map<String, Object> out = responseToMap(rfResp, null);
-                        result.success(out);
+                        postResultSuccess(result, out);
                     } catch (Throwable t) {
-                        result.error("ERROR", t.getMessage(), null);
+                        postResultError(result, "ERROR", t.getMessage(), null);
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable t) {
                     Log.e(TAG, "rfModuleReg failed", t);
-                    result.error("ERROR", t.getMessage(), null);
+                    postResultError(result, "ERROR", t.getMessage(), null);
                 }
             });
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling rfModuleReg", t);
-            result.error("ERROR", t.getMessage(), null);
+            postResultError(result, "ERROR", t.getMessage(), null);
         }
     }
 }

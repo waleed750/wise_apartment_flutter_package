@@ -42,7 +42,20 @@ public class LockRecordManager {
         
         BlinkyAction action = new BlinkyAction();
         action.setBaseAuthAction(syncAuth);
-        
+//         bleClient.syncLockRecord(
+//                 new SyncLockRecordAction(),
+//                 new FunCallback<LockRecordDataResult>() {
+//                     @Override
+//                     public void onResponse(Response<LockRecordDataResult> response) {
+//
+//                     }
+//
+//                     @Override
+//                     public void onFailure(Throwable throwable) {
+//
+//                     }
+//                 }
+//         );
         bleClient.getRecordNum(action, new FunCallback<Integer>() {
             @Override
             public void onResponse(Response<Integer> response) {

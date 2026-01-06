@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 enum WifiConfigurationType {
   serverOnly, // 1
   wifiOnly, // 2
@@ -35,10 +37,9 @@ class WifiConfig {
   WifiConfig({
     required this.ssid,
     required this.password,
-    this.updateToken = "01", //01: Update; 02: Not updating
-    this.tokenId =
-        "9/byy8/mfaIC2RbBYeDZunXURbwcx+bkKMIPVn1kyrLA4ZXqf5ryWmtfueQos+rqcgw3IA/tiAE=",
-    this.configurationType = WifiConfigurationType.wifiAndServer,
+    this.updateToken = "02", //01: Update; 02: Not updating
+    this.tokenId = "EemUAotGmkeAelOLKqBHBA==",
+    this.configurationType = WifiConfigurationType.wifiOnly,
     this.serverAddress = "",
     this.serverPort = "",
     this.ipMode = IpMode.dhcp,
@@ -98,6 +99,8 @@ class WifiConfig {
     ];
 
     String esc(String s) => s.replaceAll('"', r'\"'); // minimal escaping
-    return "{${parts.map((e) => '"${esc(e)}"').join("|")}}";
+    final output = "{${parts.map((e) => '"${esc(e)}"').join("|")}}";
+    log("WifiConfig toRfCodeString: $output", name: "WifiConfig");
+    return output;
   }
 }
