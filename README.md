@@ -324,6 +324,13 @@ Future<void> getLockHistory() async {
     final records = await wiseApartment.syncLockRecords(auth, 0);
     
     for (final record in records) {
+      // Each record is a flat map coming from the native
+      // HXJ SDK. Common fields include:
+      //   - recordTime (int, seconds timestamp)
+      //   - recordType (int, LogType enum value)
+      //   - logVersion (1 = first gen, 2 = second gen)
+      //   - modelType (HXRecord* concrete model name)
+      //   - eventFlag / power and other model-specific fields.
       print('Record: $record');
     }
   } catch (e) {

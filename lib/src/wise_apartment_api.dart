@@ -6,9 +6,6 @@ class WiseApartmentApi {
   static const MethodChannel _channel = MethodChannel('wise_apartment/methods');
 
   /// Save authentication info securely in Flutter (flutter_secure_storage)
-  static Future<void> saveAuth(Map<String, dynamic> auth) async {
-    await SecureStorageService.instance.saveAuth(auth);
-  }
 
   /// Clear stored auth
   static Future<void> clearAuth() async {

@@ -17,7 +17,6 @@ class SecureStorageService {
   );
 
   Future<void> saveAuth(Map<String, dynamic> auth) async {
-    if (auth == null) return;
     for (final entry in _authKeys.entries) {
       final key = entry.key;
       final storageKey = entry.value;

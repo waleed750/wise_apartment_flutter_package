@@ -69,11 +69,35 @@ class MockWiseApartmentPlatform
   }
 
   @override
+  /*************  ✨ Windsurf Command ⭐  *************/
+  /*******  a33f4824-019e-40ee-97ff-15ceb18c8035  *******/
   Future<Map<String, dynamic>> registerWifi(
     String wifiJson,
     Map<String, dynamic> dna,
   ) {
     return Future.value({});
+  }
+
+  @override
+  Future<Map<String, dynamic>> syncLockRecordsPage(
+    Map<String, dynamic> auth,
+
+    int startNum,
+    int readCnt,
+  ) {
+    return Future.value({});
+  }
+
+  @override
+  Future<bool> connectBle(Map<String, dynamic> auth) {
+    // TODO: implement connectBle
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> disconnectBle() {
+    // TODO: implement disconnectBle
+    throw UnimplementedError();
   }
 }
 

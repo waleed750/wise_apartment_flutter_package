@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'wise_apartment_platform_interface.dart';
-import 'dart:convert';
 export 'src/wise_apartment_exception.dart';
 export 'src/models/hxj_bluetooth_device_model.dart';
 export 'src/models/dna_info_model.dart';
@@ -58,6 +57,17 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.closeLock(auth);
   }
 
+  /// Connects to a BLE device using the provided auth/DNA map.
+  /// Returns true on success. See platform-specific implementation for details.
+  Future<bool> connectBle(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.connectBle(auth);
+  }
+
+  /// Disconnects an active BLE connection that was established via `connectBle`.
+  Future<bool> disconnectBle() {
+    return WiseApartmentPlatform.instance.disconnectBle();
+  }
+
   Future<Map<String, dynamic>> getNBIoTInfo(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.getNBIoTInfo(auth);
   }
@@ -75,6 +85,18 @@ class WiseApartment {
     int logVersion,
   ) {
     return WiseApartmentPlatform.instance.syncLockRecords(auth, logVersion);
+  }
+
+  Future<Map<String, dynamic>> syncLockRecordsPage(
+    Map<String, dynamic> auth,
+    int startNum,
+    int readCnt,
+  ) {
+    return WiseApartmentPlatform.instance.syncLockRecordsPage(
+      auth,
+      startNum,
+      readCnt,
+    );
   }
 
   Future<bool> deleteLock(Map<String, dynamic> auth) {

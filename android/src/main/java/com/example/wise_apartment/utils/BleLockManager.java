@@ -6,6 +6,7 @@ import android.os.Looper;
 import java.util.Map;
 
 import io.flutter.plugin.common.MethodChannel.Result;
+import com.example.hxjblinklibrary.blinkble.profile.data.common.LogType;
 
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockRecordAction;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
@@ -33,9 +34,9 @@ public class BleLockManager {
         // Use safe getters to avoid repetitive try/catch per-field
         Integer codeVal = getSafe("response.code", () -> response.code(), -1);
         m.put("code", codeVal);
-        putSafe(m, "message", () -> response.message());
-        try { m.put("ackMessage", ackMessageForCode(codeVal)); } catch (Exception e) { Log.w(TAG, "Failed to compute ackMessage", e); m.put("ackMessage", null); }
-        putSafe(m, "isSuccessful", () -> response.isSuccessful());
+        putSafe(m, "message", response::message);
+        try { m.put("ackMessage", WiseStatusCode.description(codeVal)); } catch (Exception e) { Log.w(TAG, "Failed to compute ackMessage", e); m.put("ackMessage", null); }
+        putSafe(m, "isSuccessful", response::isSuccessful);
         putSafe(m, "isError", () -> response.isError());
         putSafe(m, "lockMac", () -> response.getLockMac());
 
@@ -65,8 +66,8 @@ public class BleLockManager {
         if (dna == null) return m;
         putSafe(m, "mac", () -> dna.getMac());
         putSafe(m, "initTag", () -> dna.getInitTag());
-        putSafe(m, "deviceType", () -> dna.getDeviceType());
-        putSafe(m, "hardware", () -> dna.getHardWareVer());
+        putSafe(m, "deviceType", dna::getDeviceType);
+        putSafe(m, "hardware", dna::getHardWareVer);
         putSafe(m, "software", () -> dna.getSoftWareVer());
         putSafe(m, "protocolVer", () -> dna.getProtocolVer());
         putSafe(m, "appCmdSets", () -> dna.getAppCmdSets());
@@ -213,7 +214,15 @@ public class BleLockManager {
                 if (response.isSuccessful()) {
                     result.success(true);
                 } else {
-                    result.error("FAILED", "Code: " + response.code(), null);
+                    // Include numeric code and ackMessage in details so Dart can act on it
+                    try {
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                    } catch (Throwable t) {
+                        result.error("FAILED", "Code: " + response.code(), null);
+                    }
                 }
                 bleClient.disConnectBle(null); // Disconnect after operation as per original logic
             }
@@ -237,7 +246,16 @@ public class BleLockManager {
             public void onResponse(Response<Object> response) {
                  Log.d(TAG, "closeLock response: " + response.code());
                  if (response.isSuccessful()) result.success(true);
-                 else result.error("FAILED", "Code: " + response.code(), null);
+                 else {
+                     try {
+                         Map<String, Object> details = new HashMap<>();
+                         details.put("code", response.code());
+                         details.put("ackMessage", ackMessageForCode(response.code()));
+                         result.error("FAILED", "Code: " + response.code(), details);
+                     } catch (Throwable t) {
+                         result.error("FAILED", "Code: " + response.code(), null);
+                     }
+                 }
             }
             @Override
             public void onFailure(Throwable t) {
@@ -261,7 +279,16 @@ public class BleLockManager {
             @Override
             public void onResponse(Response<Object> response) {
                 if (response.isSuccessful()) result.success(true);
-                else result.error("FAILED", "Code: " + response.code(), null);
+                else {
+                    try {
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                    } catch (Throwable t) {
+                        result.error("FAILED", "Code: " + response.code(), null);
+                    }
+                }
             }
             @Override
             public void onFailure(Throwable t) {
@@ -280,7 +307,16 @@ public class BleLockManager {
             public void onResponse(Response<String> response) {
                 bleClient.disConnectBle(null);
                 if (response.isSuccessful()) result.success(true);
-                else result.error("FAILED", "Code: " + response.code(), null);
+                else {
+                    try {
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                    } catch (Throwable t) {
+                        result.error("FAILED", "Code: " + response.code(), null);
+                    }
+                }
             }
             @Override
             public void onFailure(Throwable t) {
@@ -302,7 +338,14 @@ public class BleLockManager {
                     // Return the full DNA info mapped via dnaInfoToMap (through responseToMap)
                     result.success(responseToMap(response, null));
                 } else {
-                    result.error("FAILED", "Code: " + response.code(), null);
+                    try {
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                    } catch (Throwable t) {
+                        result.error("FAILED", "Code: " + response.code(), null);
+                    }
                 }
             }
             @Override
@@ -644,12 +687,12 @@ public class BleLockManager {
         BlinkyAction action = new BlinkyAction();
         action.setBaseAuthAction(baseAuth);
 
-        SyncLockRecordAction syncLockRecordAction = new SyncLockRecordAction(
-                0,
-                10,
-                1
-        );
-        syncLockRecordAction.setBaseAuthAction(baseAuth);
+//        SyncLockRecordAction syncLockRecordAction = new SyncLockRecordAction(
+//                0,
+//                10,
+//                1
+//        );
+//        syncLockRecordAction.setBaseAuthAction(baseAuth);
 
         try {
 

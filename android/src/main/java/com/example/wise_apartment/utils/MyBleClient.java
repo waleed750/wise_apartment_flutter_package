@@ -7,6 +7,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.hxjblinklibrary.blinkble.entity.EventResponse;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.KeyEventAddKey;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.KeyEventRegWifi;
 import com.example.hxjblinklibrary.blinkble.parser.open.EventPostDataParser;
@@ -101,5 +102,10 @@ public class MyBleClient extends HxjBleClient {
     @Override
     public void disConnectBle(FunCallback funCallback) {
         super.disConnectBle(funCallback);
+    }
+
+    @Override
+    public void connectBle(BlinkyAction blinkyAction, FunCallback funCallback) {
+        super.connectBle(blinkyAction, funCallback);
     }
 }

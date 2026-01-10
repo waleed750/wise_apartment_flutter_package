@@ -33,6 +33,12 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     Map<String, dynamic> auth,
     int logVersion,
   );
+  Future<Map<String, dynamic>> syncLockRecordsPage(
+    Map<String, dynamic> auth,
+    int startNum,
+    int readCnt,
+  );
+
   Future<bool> deleteLock(Map<String, dynamic> auth);
   Future<Map<String, dynamic>> getDna(Map<String, dynamic> auth);
 
@@ -46,4 +52,8 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     String wifiJson,
     Map<String, dynamic> dna,
   );
+
+  // BLE connect/disconnect helpers (native implementations may use callbacks)
+  Future<bool> connectBle(Map<String, dynamic> auth);
+  Future<bool> disconnectBle();
 }

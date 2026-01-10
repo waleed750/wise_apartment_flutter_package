@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
+import 'package:flutter/services.dart';
+import 'package:wise_apartment/src/wise_status_store.dart';
+import 'sync_loc_records.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
@@ -27,15 +30,25 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final auth = widget.device.toMap();
     try {
       final ok = await _plugin.openLock(auth);
+      // successful boolean result -> clear any previous status
+      WiseStatusStore.clear();
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Open: $ok')));
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Open error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Open error: $e (code: ${status?.code})')),
+      );
     } finally {
       setState(() => _busy = false);
     }
@@ -46,15 +59,24 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final auth = widget.device.toMap();
     try {
       final ok = await _plugin.closeLock(auth);
+      WiseStatusStore.clear();
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Close: $ok')));
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Close error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Close error: $e (code: ${status?.code})')),
+      );
     } finally {
       setState(() => _busy = false);
     }
@@ -90,6 +112,10 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         );
 
         if (!mounted) return;
+        // Ensure BLE disconnect before leaving this screen
+        try {
+          await _plugin.disconnectBle();
+        } catch (_) {}
         Navigator.pop(context, {'removed': true, 'mac': widget.device.mac});
       } else {
         if (!mounted) return;
@@ -98,13 +124,57 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         ).showSnackBar(SnackBar(content: Text('Delete failed: $ok')));
       }
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete error: $e (code: ${status?.code})')),
+      );
     } finally {
       setState(() => _busy = false);
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Attempt to connect when the screen is shown. Use a post-frame callback
+    // so we have a valid BuildContext for SnackBars.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      setState(() => _busy = true);
+      final auth = widget.device.toMap();
+      try {
+        final ok = await _plugin.connectBle(auth);
+        WiseStatusStore.clear();
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('BLE connect: $ok')));
+      } catch (e) {
+        WiseStatusHandler? status;
+        if (e is PlatformException) {
+          try {
+            status = WiseStatusStore.setFromMap(
+              e.details as Map<String, dynamic>?,
+            );
+          } catch (_) {}
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('BLE connect error: $e (code: ${status?.code})'),
+          ),
+        );
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    });
   }
 
   Future<void> _registerWifi() async {
@@ -147,18 +217,38 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
     try {
       final res = await _plugin.registerWifi(wifiModel.toRfCodeString(), dna);
+      // capture numeric status from response map (returns a status object)
+      final status = WiseStatusStore.setFromMap(res);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('regWifi: ${res.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('regWifi: ${res.toString()} (code: ${status?.code})'),
+        ),
+      );
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('regWifi error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('regWifi error: $e (code: ${status?.code})')),
+      );
     } finally {
       setState(() => _busy = false);
     }
+  }
+
+  Future<void> _openSyncLocRecords() async {
+    final auth = widget.device.toMap();
+    if (!mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => SyncLocRecordsScreen(auth: auth)));
   }
 
   // Removed _removeFromStorage helper — deletion now removes from storage
@@ -205,6 +295,13 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                   child: const Text('Delete'),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: ElevatedButton(
+                onPressed: _openSyncLocRecords,
+                child: const Text('Sync Loc records'),
+              ),
             ),
             const SizedBox(height: 12),
             // Row(
@@ -338,6 +435,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
   @override
   void dispose() {
+    // Best-effort disconnect; dispose must not be async so we fire-and-forget.
+    try {
+      _plugin.disconnectBle().catchError((_) {});
+    } catch (_) {}
+
     // Clean up controllers in the centralized form state
     _form.dispose();
     super.dispose();

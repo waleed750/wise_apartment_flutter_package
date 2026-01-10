@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'wise_apartment_platform_interface.dart';
 import 'src/wise_apartment_exception.dart';
+import 'src/wise_status_store.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
@@ -108,7 +109,20 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     int logVersion,
   ) async {
     final args = Map<String, dynamic>.from(auth);
-    args['logVersion'] = logVersion;
+    // If the caller no longer passes `logVersion`, infer it from
+    // `menuFeature` (third bit -> gen2). Otherwise fall back to
+    // the provided `logVersion` argument.
+    int effectiveLogVersion = logVersion;
+    if (args.containsKey('menuFeature')) {
+      final dynamic mf = args['menuFeature'];
+      int mfInt = 0;
+      if (mf is int) {
+        mfInt = mf;
+      } else if (mf is String)
+        mfInt = int.tryParse(mf) ?? 0;
+      effectiveLogVersion = ((mfInt & 0x4) != 0) ? 2 : 1;
+    }
+    args['logVersion'] = effectiveLogVersion;
     try {
       final List<dynamic>? result = await methodChannel.invokeMethod(
         'syncLockRecords',
@@ -120,8 +134,56 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } on PlatformException catch (e) {
-      throw WiseApartmentException(e.code, e.message);
+      throw WiseApartmentException(e.code, e.message, e.details);
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>> syncLockRecordsPage(
+    Map<String, dynamic> auth,
+
+    int startNum,
+    int readCnt,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+    // If the caller provided `menuFeature` in the auth/DNA map, prefer
+    // its third bit to determine the lock record generation: bit 3 (0x4)
+    // set => generation 2, otherwise generation 1. If `menuFeature` is
+    // absent, fall back to the provided `logVersion` argument.
+    late final int effectiveLogVersion;
+
+    if (args.containsKey('menuFeature')) {
+      final dynamic mf = args['menuFeature'];
+      int mfInt = 0;
+      if (mf is int) {
+        mfInt = mf;
+      } else if (mf is String) {
+        mfInt = int.tryParse(mf) ?? 0;
+      }
+      effectiveLogVersion = isSecondGenerationRecord(mfInt) ? 2 : 1;
+    }
+
+    args['logVersion'] = effectiveLogVersion;
+    args['startNum'] = startNum;
+    args['readCnt'] = readCnt;
+    args['readCnt'] = readCnt;
+    try {
+      final result = await methodChannel.invokeMapMethod<String, dynamic>(
+        'syncLockRecordsPage',
+        args,
+      );
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  /// Returns true if the lock supports ONLY 2nd generation operation records.
+  /// According to spec:
+  /// - third bit = 1  → Gen2 only
+  /// - otherwise     → Gen1 only
+  bool isSecondGenerationRecord(int menuFeature) {
+    return (menuFeature & 0x4) == 1; // 0x4 = third bit
   }
 
   @override
@@ -170,21 +232,71 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       'ackMessage': 'Operation successful',
       'isSuccessful': true,
       'isError': false,
-      'lockMac': dna['mac'] ?? null,
+      'lockMac': dna['mac'],
       'body': wifiJson,
     };
     return simulated;
   }
 
+  @override
+  Future<bool> connectBle(Map<String, dynamic> auth) async {
+    return _invokeBool('connectBle', auth);
+  }
+
+  @override
+  Future<bool> disconnectBle() async {
+    return _invokeBool('disconnectBle');
+  }
+
   Future<bool> _invokeBool(String method, [dynamic arguments]) async {
     try {
-      final bool? result = await methodChannel.invokeMethod<bool>(
+      final dynamic result = await methodChannel.invokeMethod<dynamic>(
         method,
         arguments,
       );
-      return result ?? false;
+
+      if (result == null) return false;
+
+      if (result is bool) {
+        // No numeric code provided — clear stored status
+        WiseStatusStore.clear();
+        return result;
+      }
+
+      if (result is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(result);
+        // store numeric code/ackMessage if present and get a status object
+        final status = WiseStatusStore.setFromMap(m);
+
+        // Interpret success: prefer explicit flags, otherwise success == ACK_STATUS_SUCCESS
+        if (m.containsKey('isSuccessful')) {
+          final dynamic v = m['isSuccessful'];
+          if (v is bool) return v;
+        }
+        if (m.containsKey('ok')) {
+          final dynamic v = m['ok'];
+          if (v is bool) return v;
+        }
+        // Fallback: if code == 0x01 consider success
+        if (status != null && status.code == 0x01) {
+          return true;
+        }
+        return false;
+      }
+
+      // Unexpected type — try to coerce to bool
+      return result == true;
     } on PlatformException catch (e) {
-      throw WiseApartmentException(e.code, e.message);
+      // If platform returns details with numeric code, capture it
+      try {
+        final details = e.details;
+        if (details is Map) {
+          final _ = WiseStatusStore.setFromMap(
+            Map<String, dynamic>.from(details),
+          );
+        }
+      } catch (_) {}
+      throw WiseApartmentException(e.code, e.message, e.details);
     }
   }
 }

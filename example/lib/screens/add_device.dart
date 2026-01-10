@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
+import 'package:flutter/services.dart';
+import 'package:wise_apartment/src/wise_status_store.dart';
 import '../src/secure_storage.dart';
 import 'device_details.dart';
 
@@ -99,10 +101,35 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
           .toList();
       if (mounted) setState(() => _scanned = list);
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
+        String? codeStr;
+        String? msg;
+        if (e is WiseApartmentException) {
+          codeStr = e.code;
+          msg = e.message;
+          status = WiseStatusStore.setFromWiseException(e);
+        } else if (e is PlatformException) {
+          try {
+            status = WiseStatusStore.setFromMap(
+              e.details as Map<String, dynamic>?,
+            );
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Scan failed: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _scanning = false);
@@ -131,6 +158,27 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       }
       final cipType = device.chipType ?? 0;
       final res = await _plugin.addDevice(mac, cipType);
+      // Attempt to capture a numeric code from the top-level response or nested responses
+      WiseStatusHandler? status;
+      try {
+        status = WiseStatusStore.setFromMap(res);
+        // If not present, try to extract nested stage response
+        if (status?.code == null &&
+            res is Map &&
+            res.containsKey('responses')) {
+          final stage = res['stage'];
+          final responses = res['responses'];
+          if (responses is Map &&
+              stage != null &&
+              responses.containsKey(stage)) {
+            final nested = responses[stage];
+            if (nested is Map)
+              status = WiseStatusStore.setFromMap(
+                nested as Map<String, dynamic>?,
+              );
+          }
+        }
+      } catch (_) {}
       Map<String, dynamic>? toSave;
 
       // Log for debugging
@@ -194,14 +242,39 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
         if (mounted) Navigator.of(context, rootNavigator: true).pop();
       }
     } catch (e) {
+      WiseStatusHandler? status;
+      if (e is PlatformException) {
+        try {
+          status = WiseStatusStore.setFromMap(
+            e.details as Map<String, dynamic>?,
+          );
+        } catch (_) {}
+      }
       if (mounted) {
         // Ensure progress dialog removed
         try {
           Navigator.of(context, rootNavigator: true).pop();
         } catch (_) {}
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Add error: $e')));
+        String? codeStr;
+        String? msg;
+        if (e is WiseApartmentException) {
+          codeStr = e.code;
+          msg = e.message;
+          status = WiseStatusStore.setFromWiseException(e);
+        } else if (e is PlatformException) {
+          try {
+            status = WiseStatusStore.setFromMap(
+              e.details as Map<String, dynamic>?,
+            );
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Add error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+            ),
+          ),
+        );
       }
     }
   }

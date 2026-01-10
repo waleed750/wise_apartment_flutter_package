@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
-import 'dart:io' show Platform;
+// ignore_for_file: dead_code, unnecessary_null_aware_operator, unused_import, unused_field, unused_element
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'screens/add_device.dart';
@@ -88,9 +88,9 @@ class _MyAppState extends State<MyApp> {
       _addLog('Starting Scan...');
       final results = await _plugin.startScan(timeoutMs: 5000);
       setState(() {
-        _scanResults = results ?? [];
+        _scanResults = results;
       });
-      _addLog('Scan Complete. Found: ${results?.length ?? 0} devices.');
+      _addLog('Scan Complete. Found: ${results.length} devices.');
     } catch (e) {
       _addLog('Scan Failed: $e');
     }
@@ -331,7 +331,7 @@ class _MyAppState extends State<MyApp> {
                         return Card(
                           child: ListTile(
                             leading: const Icon(Icons.lock),
-                            title: Text(displayName ?? mac ?? 'Unknown'),
+                            title: Text(displayName ?? mac),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

@@ -21,11 +21,15 @@ import io.flutter.plugin.common.MethodChannel.Result;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import android.bluetooth.BluetoothDevice;
 import com.example.hxjblinklibrary.blinkble.profile.client.LinkCallBack;
+import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
+import com.example.hxjblinklibrary.blinkble.entity.Response;
 
 import com.example.wise_apartment.utils.BleLockManager;
 import com.example.wise_apartment.utils.BleScanManager;
 import com.example.wise_apartment.utils.DeviceInfoManager;
 import com.example.wise_apartment.utils.LockRecordManager;
+import com.example.wise_apartment.utils.PluginUtils;
 
 /**
  * WiseApartmentPlugin
@@ -214,6 +218,64 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           result.error("INIT_ERROR", "BLE client not initialized", null);
         }
         break;
+      case "disconnectBle":
+        if (bleClient != null) {
+          try {
+            bleClient.disConnectBle(new FunCallback() {
+              @Override
+              public void onResponse(Response response) {
+                result.success(true);
+              }
+
+              @Override
+              public void onFailure(Throwable t) {
+                result.error("ERROR", t.getMessage(), null);
+              }
+            });
+          } catch (Throwable t) {
+            // Fallback to immediate disconnect if callback variant fails
+            try { bleClient.disConnectBle(null); } catch (Throwable ignored) {}
+            result.success(true);
+          }
+        } else {
+          result.error("INIT_ERROR", "BLE client not initialized", null);
+        }
+        break;
+      case "connectBle":
+        if (bleClient != null) {
+          try {
+            BlinkyAction action = new BlinkyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction((Map<String, Object>) call.arguments));
+            bleClient.connectBle(action, new FunCallback() {
+              @Override
+              public void onResponse(Response response) {
+                if (response != null && response.isSuccessful()) {
+                  result.success(true);
+                } else {
+                  try {
+                    Map<String, Object> details = new java.util.HashMap<>();
+                    if (response != null) details.put("code", response.code());
+                    details.put("ackMessage", com.example.wise_apartment.utils.WiseStatusCode.description(response == null ? -1 : response.code()));
+                    result.error("FAILED", "Code: " + (response == null ? "-1" : response.code()), details);
+                  } catch (Throwable t) {
+                    result.error("FAILED", "Connect failed", null);
+                  }
+                }
+              }
+
+              @Override
+              public void onFailure(Throwable t) {
+                result.error("ERROR", t.getMessage(), null);
+              }
+            });
+          } catch (Throwable t) {
+            Log.e(TAG, "connectBle invocation failed", t);
+            result.error("ERROR", "connectBle invocation failed: " + t.getMessage(), null);
+          }
+        } else {
+          result.error("INIT_ERROR", "BLE client not initialized", null);
+        }
+        break;
       case "clearSdkState":
         handleClearSdkState(result);
         break;
@@ -241,6 +303,13 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       case "syncLockRecords":
         if (recordManager != null) {
           recordManager.syncLockRecords((Map<String, Object>) call.arguments, result);
+        } else {
+          result.error("INIT_ERROR", "Record manager not initialized", null);
+        }
+        break;
+      case "syncLockRecordsPage":
+        if (recordManager != null) {
+          recordManager.syncLockRecordsPage((Map<String, Object>) call.arguments, result);
         } else {
           result.error("INIT_ERROR", "Record manager not initialized", null);
         }
