@@ -50,8 +50,9 @@ class HXRecord1WrongKeyUnlockModel extends HXRecord1BaseModel {
       'keyStatus',
       'keyType',
       'keyLen',
-      'key'
-    ]) raw.remove(k);
+      'key',
+    ])
+      raw.remove(k);
 
     return HXRecord1WrongKeyUnlockModel(
       recordTime: recordTime,

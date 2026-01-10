@@ -66,8 +66,9 @@ class HXRecord1SetSysPramModel extends HXRecord1BaseModel {
       'lockCylinderAlarmEnable',
       'antiLockEnable',
       'lockCoverAlarmEnable',
-      'systemLanguage'
-    ]) raw.remove(k);
+      'systemLanguage',
+    ])
+      raw.remove(k);
 
     return HXRecord1SetSysPramModel(
       recordTime: recordTime,
