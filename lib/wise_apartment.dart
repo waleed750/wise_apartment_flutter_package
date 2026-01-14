@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'wise_apartment_platform_interface.dart';
 export 'src/wise_apartment_exception.dart';
-export 'src/models/hxj_bluetooth_device_model.dart';
-export 'src/models/dna_info_model.dart';
+export 'src/models/export_hxj_models.dart';
 
 class WiseApartment {
   /// Returns the platform version (e.g. "Android 12", "iOS 15.0").
@@ -119,5 +118,30 @@ class WiseApartment {
     Map<String, dynamic> dna,
   ) {
     return WiseApartmentPlatform.instance.registerWifi(wifiConfig, dna);
+  }
+
+  /// Add a key to the lock. `auth` should contain auth/DNA fields; `params`
+  /// contains action-specific parameters required by the native SDK.
+  Future<Map<String, dynamic>> addLockKey(
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  ) {
+    return WiseApartmentPlatform.instance.addLockKey(auth, params);
+  }
+
+  /// Synchronize keys on the lock. Returns a Map describing the sync result.
+  Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.syncLockKey(auth);
+  }
+
+  /// Synchronize the lock's internal clock/time. Returns true on success.
+  Future<bool> syncLockTime(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.syncLockTime(auth);
+  }
+
+  /// Retrieve system parameters from the lock.
+  /// Returns a Map with response metadata and `body` containing SysParam fields.
+  Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
+    return WiseApartmentPlatform.instance.getSysParam(auth);
   }
 }

@@ -63,6 +63,66 @@ flutter pub get
 
 ---
 
+## Lock Key Fields (Add Key Parameters)
+
+The following table documents fields used when adding keys or describing key metadata returned by the lock.
+
+| Type | Field | Description |
+|------|-------|-------------|
+| `private int` | `authorMode` | Adding method: 0 = Make the door lock enter the mode of reading fingerprint/card/remote control; 1 = Add password or card number |
+| `private int` | `addedKeyType` | Key type. When `authorMode==0`: `1` = fingerprint, `4` = card, `8` = remote control. When `authorMode==1`: `2` = password, `4` = card number |
+| `private int` | `password` | When `authorMode==1`, the password or card number to be added (6-12 digits) |
+| `private int` | `vaildMode` | Validity period mode: `0` = Validity period authorization; `1` = Periodic repetition authorization |
+| `private long` | `vaildStartTime` | Authorization start timestamp (seconds). Fill in `0` to indicate unlimited start time |
+| `private long` | `vaildEndTime` | Authorization end timestamp (seconds). Fill in `0xFFFFFFFF` to indicate unlimited end time |
+| `private int` | `dayStartTimes` | Number of minutes from 0:00 when the cycle is repeated — the start time of the valid period of the day |
+| `private int` | `dayEndTimes` | Number of minutes from 0:00 when the cycle is repeated — the end time of the valid period of the day |
+| `private int` | `week` | Required when `vaildMode==1`. Bits 0..6 correspond to days of week (bit set = key valid on that day) |
+| `private int` | `vaildNumber` | Number of authorizations: `0x01` = 1 time; `0xFF` = unlimited times; `0x00` = disabled |
+| `private int` | `addedKeyGroupId` | The group id corresponding to the key (the user/group the key is assigned to) |
+| `private int` | `addedKeyID` | Key id on the lock |
+
+### `AddLockKeyActionModel` (usage & validation)
+
+The `AddLockKeyActionModel` class encapsulates parameters used when calling `addLockKey`. The model performs no network I/O and can be validated locally before sending to the device.
+
+Rules and validation enforced by `AddLockKeyActionModel.validate()` / `validateOrThrow()`:
+
+- `localRemoteMode`: Delivery mode; default is `1`.
+- `authorMode`: 0 = enter fingerprint/card/remote mode; 1 = add password/card number.
+- `addedKeyType`: When `authMode==0`: `1` (fingerprint), `4` (card), `8` (remote). When `authMode==1`: `2` (password), `4` (card number).
+- `password`: Required when `authorMode==1`. Must be 6-12 digits.
+- `vaildMode`: `0` = single validity window; `1` = periodic repetition mode.
+- When `vaildMode==1`: `week` must be non-zero; `dayStartTimes` and `dayEndTimes` must be in `0..1439` and `dayEndTimes > dayStartTimes`.
+- `validStartTime` must be >= 0.
+- `validEndTime` must be `0xFFFFFFFF` (unlimited) or >= `validStartTime`.
+- `vaildNumber` must be between `0` and `255` (`0xFF` = unlimited).
+
+Example usage:
+
+```dart
+final action = AddLockKeyActionModel(
+  password: '123456', // when required
+  authorMode: 1,
+  addedKeyType: AddLockKeyActionModel.addedPassword,
+  keyDataType: 0,
+  vaildMode: 0,
+  validStartTime: 0,
+  validEndTime: 0xFFFFFFFF,
+  localRemoteMode: 1,
+  status: 0,
+);
+
+// Validate locally (optionally pass `authMode` to check addedKeyType validity):
+action.validateOrThrow(authMode: 1);
+
+// Call plugin (the plugin expects a map under the `action` key):
+final res = await wiseApartment.addLockKey(authMap, {'action': action.toMap()});
+```
+
+Add these notes to ensure callers construct and validate the model before invoking `addLockKey`.
+
+
 ## Platform Setup
 
 ### Android Setup
@@ -434,6 +494,80 @@ try {
 | `TIMEOUT` | Operation timed out |
 
 ---
+
+## Safety & Permission Changes (2026-01-11)
+
+This release introduces two important fixes to make the plugin more robust
+when interacting with the native Android BLE SDK:
+
+- OneShotResult (Android-side)
+- Runtime permission enforcement for BLE calls
+
+### OneShotResult (what and why)
+
+Location: `android/src/main/java/com/example/wise_apartment/utils/OneShotResult.java`
+
+The native HXJ BLE SDK can invoke callbacks multiple times and often from
+background threads. Previously those callbacks forwarded replies directly to
+the Flutter `MethodChannel.Result`, which could lead to a crash with the
+exception "java.lang.IllegalStateException: Reply already submitted" when an
+attempt was made to reply more than once.
+
+`OneShotResult` is a small Java utility that wraps a `MethodChannel.Result` and
+enforces three rules:
+
+1. Thread-safety: only the first reply is accepted using an `AtomicBoolean`.
+2. Main-thread delivery: the delegate call is always executed on the Android
+   main/UI thread (via `Handler` + `Looper.getMainLooper()`).
+3. Non-destructive logging: duplicate replies are ignored and logged with
+   `Log.w(TAG, ...)` so behavior is observable in logcat without crashing.
+
+How to use: the plugin wraps the incoming `Result` at the start of
+`onMethodCall` with `new OneShotResult(result, TAG)` and then uses that wrapped
+result (`safeResult`) for all replies and for passing into manager helper
+methods. This prevents double-reply crashes without changing the Dart API.
+
+### Permission behavior
+
+BLE-related methods now explicitly check Android runtime permissions and will
+fail fast with a clear error when permissions are missing. This applies to
+methods such as `startScan`, `connectBle`, `disconnectBle`, `openLock`,
+`deleteLock` and others that interact with the BLE radio.
+
+- On Android 12+ (API 31+) the plugin checks for `BLUETOOTH_SCAN` and
+  `BLUETOOTH_CONNECT` (plus location where appropriate).
+- On older Android releases the plugin checks for `ACCESS_FINE_LOCATION`.
+- If permissions are missing the plugin returns a `PlatformException` with
+  code `PERMISSION_DENIED` (Dart) or replies with `PERMISSION_DENIED` on the
+  Java side.
+
+Migration notes for app developers:
+
+- Ensure the Android manifest includes the new permissions (see the
+  "Android Setup" section above). For Android 12+ include
+  `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` and continue to include legacy
+  Bluetooth/location permissions for older devices.
+- Request runtime permissions before calling BLE methods. The example app
+  demonstrates an `_ensureBlePermissions()` helper that uses
+  `permission_handler` to request permissions on demand.
+- If your app depends on receiving multiple asynchronous messages (for
+  example per-scan-result callbacks), consider migrating those flows to an
+  `EventChannel` — `OneShotResult` intentionally suppresses duplicate replies
+  for the same `MethodChannel` invocation.
+
+### Log diagnostics
+
+`OneShotResult` logs duplicate replies using `Log.w(TAG, ...)`. When
+diagnosing issues look for messages that contain "Duplicate reply ignored" in
+logcat. The plugin TAG `WiseApartmentPlugin` is used so messages are easy to
+find.
+
+### Summary
+
+These changes improve stability and make permission failures explicit. They do
+not change the Dart API surface; instead they harden the native side so apps
+don't crash when the vendor SDK behaves unexpectedly.
+
 
 ## Example App
 

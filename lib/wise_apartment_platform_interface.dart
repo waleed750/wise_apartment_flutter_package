@@ -56,4 +56,21 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   // BLE connect/disconnect helpers (native implementations may use callbacks)
   Future<bool> connectBle(Map<String, dynamic> auth);
   Future<bool> disconnectBle();
+
+  // Add Key feature
+  /// Adds a lock key using provided auth and action parameters.
+  /// Returns a Map describing the result (code/ackMessage/body...).
+  Future<Map<String, dynamic>> addLockKey(
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  );
+
+  /// Synchronize keys on the lock. Accepts auth/DNA map and returns a Map
+  /// describing the sync result or a list of keys inside the returned Map.
+  Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth);
+  Future<bool> syncLockTime(Map<String, dynamic> auth);
+
+  /// Retrieve system parameters from the lock (SysParamResult).
+  /// Returns a Map containing the response metadata and a `body` map of fields.
+  Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth);
 }

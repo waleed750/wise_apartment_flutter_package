@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
+import 'sys_param_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'sync_loc_records.dart';
+import 'add_key_screen.dart';
+import 'sync_keys_screen.dart';
+import 'dna_info_screen.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
@@ -39,7 +43,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       ).showSnackBar(SnackBar(content: Text('Open: $ok')));
     } catch (e) {
       WiseStatusHandler? status;
-      if (e is PlatformException) {
+      String? codeStr;
+      String? msg;
+      if (e is WiseApartmentException) {
+        codeStr = e.code;
+        msg = e.message;
+        try {
+          status = WiseStatusStore.setFromWiseException(e);
+        } catch (_) {}
+      } else if (e is PlatformException) {
         try {
           status = WiseStatusStore.setFromMap(
             e.details as Map<String, dynamic>?,
@@ -48,7 +60,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Open error: $e (code: ${status?.code})')),
+        SnackBar(
+          content: Text(
+            'Open error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+          ),
+        ),
       );
     } finally {
       setState(() => _busy = false);
@@ -67,7 +83,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       ).showSnackBar(SnackBar(content: Text('Close: $ok')));
     } catch (e) {
       WiseStatusHandler? status;
-      if (e is PlatformException) {
+      String? codeStr;
+      String? msg;
+      if (e is WiseApartmentException) {
+        codeStr = e.code;
+        msg = e.message;
+        try {
+          status = WiseStatusStore.setFromWiseException(e);
+        } catch (_) {}
+      } else if (e is PlatformException) {
         try {
           status = WiseStatusStore.setFromMap(
             e.details as Map<String, dynamic>?,
@@ -76,7 +100,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Close error: $e (code: ${status?.code})')),
+        SnackBar(
+          content: Text(
+            'Close error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+          ),
+        ),
       );
     } finally {
       setState(() => _busy = false);
@@ -128,7 +156,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       }
     } catch (e) {
       WiseStatusHandler? status;
-      if (e is PlatformException) {
+      String? codeStr;
+      String? msg;
+      if (e is WiseApartmentException) {
+        codeStr = e.code;
+        msg = e.message;
+        try {
+          status = WiseStatusStore.setFromWiseException(e);
+        } catch (_) {}
+      } else if (e is PlatformException) {
         try {
           status = WiseStatusStore.setFromMap(
             e.details as Map<String, dynamic>?,
@@ -137,7 +173,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete error: $e (code: ${status?.code})')),
+        SnackBar(
+          content: Text(
+            'Delete error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+          ),
+        ),
       );
     } finally {
       setState(() => _busy = false);
@@ -161,7 +201,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         ).showSnackBar(SnackBar(content: Text('BLE connect: $ok')));
       } catch (e) {
         WiseStatusHandler? status;
-        if (e is PlatformException) {
+        String? codeStr;
+        String? msg;
+        if (e is WiseApartmentException) {
+          codeStr = e.code;
+          msg = e.message;
+          try {
+            status = WiseStatusStore.setFromWiseException(e);
+          } catch (_) {}
+        } else if (e is PlatformException) {
           try {
             status = WiseStatusStore.setFromMap(
               e.details as Map<String, dynamic>?,
@@ -171,7 +219,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('BLE connect error: $e (code: ${status?.code})'),
+            content: Text(
+              'BLE connect error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+            ),
           ),
         );
       } finally {
@@ -254,7 +304,15 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       );
     } catch (e) {
       WiseStatusHandler? status;
-      if (e is PlatformException) {
+      String? codeStr;
+      String? msg;
+      if (e is WiseApartmentException) {
+        codeStr = e.code;
+        msg = e.message;
+        try {
+          status = WiseStatusStore.setFromWiseException(e);
+        } catch (_) {}
+      } else if (e is PlatformException) {
         try {
           status = WiseStatusStore.setFromMap(
             e.details as Map<String, dynamic>?,
@@ -263,7 +321,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('regWifi error: $e (code: ${status?.code})')),
+        SnackBar(
+          content: Text(
+            'regWifi error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
+          ),
+        ),
       );
     } finally {
       setState(() => _busy = false);
@@ -285,7 +347,56 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final name = widget.device.mac ?? 'Device';
     final mac = widget.device.mac ?? '';
     return Scaffold(
-      appBar: AppBar(title: Text("Device Details")),
+      appBar: AppBar(
+        title: Text("Device Details"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Sys Params',
+            onPressed: () async {
+              final auth = widget.device.toMap();
+              if (!mounted) return;
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => SysParamScreen(auth: auth)),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Show DNA info',
+            onPressed: () async {
+              final auth = widget.device.toMap();
+              if (!mounted) return;
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DnaInfoScreen(dna: auth)),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.access_time),
+            tooltip: 'Sync lock time',
+            onPressed: () async {
+              setState(() => _busy = true);
+              final auth = widget.device.toMap();
+              try {
+                final ok = await _plugin.syncLockTime(auth);
+                WiseStatusStore.clear();
+                if (!mounted) return;
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Sync time: $ok')));
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Sync time error: $e')));
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+          ),
+        ],
+      ),
       body: PopScope(
         onPopInvokedWithResult: (didPop, result) async {
           if (didPop) {
@@ -343,16 +454,36 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Row(
-              //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final auth = widget.device.toMap();
+                    if (!mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SyncKeysScreen(auth: auth),
+                      ),
+                    );
+                  },
+                  child: const Text('Sync Keys'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final auth = widget.device.toMap();
+                    if (!mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AddKeyScreen(auth: auth),
+                      ),
+                    );
+                  },
+                  child: const Text('Add Key'),
+                ),
+              ),
 
-              //   children: [
-              //     ElevatedButton(
-              //       onPressed: _removeFromStorage,
-              //       child: const Text('Remove from app'),
-              //     ),
-              //   ],
-              // ),
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),

@@ -6,9 +6,11 @@ import android.os.Looper;
 import java.util.Map;
 
 import io.flutter.plugin.common.MethodChannel.Result;
-import com.example.hxjblinklibrary.blinkble.profile.data.common.LogType;
 
-import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockRecordAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.AddLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.reslut.AddLockKeyResult;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
 import com.example.hxjblinklibrary.blinkble.entity.Response;
@@ -21,7 +23,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleSetHotelLockSystemAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleHotelLockSystemParam;
 import java.util.HashMap;
-import org.json.JSONObject;
+import java.util.Objects;
 
 public class BleLockManager {
     private static final String TAG = "BleLockManager";
@@ -32,19 +34,19 @@ public class BleLockManager {
         Map<String, Object> m = new HashMap<>();
         if (response == null) return m;
         // Use safe getters to avoid repetitive try/catch per-field
-        Integer codeVal = getSafe("response.code", () -> response.code(), -1);
+        Integer codeVal = getSafe("response.code", response::code, -1);
         m.put("code", codeVal);
         putSafe(m, "message", response::message);
         try { m.put("ackMessage", WiseStatusCode.description(codeVal)); } catch (Exception e) { Log.w(TAG, "Failed to compute ackMessage", e); m.put("ackMessage", null); }
         putSafe(m, "isSuccessful", response::isSuccessful);
-        putSafe(m, "isError", () -> response.isError());
-        putSafe(m, "lockMac", () -> response.getLockMac());
+        putSafe(m, "isError", response::isError);
+        putSafe(m, "lockMac", response::getLockMac);
 
         // body conversion
         if (bodyObj != null) {
             m.put("body", bodyObj);
         } else {
-            Object body = null;
+            Object body;
             try { body = response.body(); } catch (Exception e) { Log.w(TAG, "Failed to read response.body", e); body = null; }
 
             if (body == null) {
@@ -64,55 +66,52 @@ public class BleLockManager {
     private Map<String, Object> dnaInfoToMap(DnaInfo dna) {
         Map<String, Object> m = new HashMap<>();
         if (dna == null) return m;
-        putSafe(m, "mac", () -> dna.getMac());
-        putSafe(m, "initTag", () -> dna.getInitTag());
+        putSafe(m, "mac", dna::getMac);
+        putSafe(m, "initTag", dna::getInitTag);
         putSafe(m, "deviceType", dna::getDeviceType);
         putSafe(m, "hardware", dna::getHardWareVer);
-        putSafe(m, "software", () -> dna.getSoftWareVer());
-        putSafe(m, "protocolVer", () -> dna.getProtocolVer());
-        putSafe(m, "appCmdSets", () -> dna.getAppCmdSets());
-        putSafe(m, "dnaAes128Key", () -> dna.getDnaAes128Key());
-        putSafe(m, "authorizedRoot", () -> dna.getAuthorizedRoot());
-        putSafe(m, "authorizedUser", () -> dna.getAuthorizedUser());
-        putSafe(m, "authorizedTempUser", () -> dna.getAuthorizedTempUser());
-        putSafe(m, "rFModuleType", () -> dna.getrFMoudleType());
-        putSafe(m, "lockFunctionType", () -> dna.getLockFunctionType());
-        putSafe(m, "maximumVolume", () -> dna.getMaximumVolume());
-        putSafe(m, "maximumUserNum", () -> dna.getMaximumUserNum());
-        putSafe(m, "menuFeature", () -> dna.getMenuFeature());
-        putSafe(m, "fingerPrintfNum", () -> dna.getFingerPrintfNum());
-        putSafe(m, "projectID", () -> dna.getProjectID());
-        putSafe(m, "rFModuleMac", () -> dna.getRFModuleMac());
-        putSafe(m, "motorDriverMode", () -> dna.getMotorDriverMode());
-        putSafe(m, "motorSetMenuFunction", () -> dna.getMotorSetMenuFunction());
-        putSafe(m, "MoudleFunction", () -> dna.getMoudleFunction());
-        putSafe(m, "BleActiveTimes", () -> dna.getBleActiveTimes());
-        putSafe(m, "ModuleSoftwareVer", () -> dna.getModuleSoftwareVer());
-        putSafe(m, "ModuleHardwareVer", () -> dna.getModuleHardwareVer());
-        putSafe(m, "passwordNumRange", () -> dna.getPasswordNumRange());
-        putSafe(m, "OfflinePasswordVer", () -> dna.getOfflinePasswordVer());
-        putSafe(m, "supportSystemLanguage", () -> dna.getSupportSystemLanguage());
-        putSafe(m, "hotelFunctionEn", () -> dna.getHotelFunctionEn());
-        putSafe(m, "schoolOpenNormorl", () -> dna.getSchoolOpenNormorl());
-        putSafe(m, "cabinetLock", () -> dna.getCabinetLock());
-        putSafe(m, "lockSystemFunction", () -> dna.getLockSystemFunction());
-        putSafe(m, "lockNetSystemFunction", () -> dna.getLockNetSystemFunction());
-        putSafe(m, "sysLanguage", () -> dna.getSysLanguage());
-        putSafe(m, "keyAddMenuType", () -> dna.getKeyAddMenuType());
-        putSafe(m, "functionFlag", () -> dna.getFunctionFlag());
-        putSafe(m, "bleSmartCardNfcFunction", () -> dna.getBleSmartCardNfcFunction());
-        putSafe(m, "wisapartmentCardFunction", () -> dna.getWisapartmentCardFunction());
-        putSafe(m, "lockCompanyId", () -> dna.getLockCompanyId());
-        putSafe(m, "deviceDnaInfoStr", () -> dna.getDeviceDnaInfoStr());
+        putSafe(m, "software", dna::getSoftWareVer);
+        putSafe(m, "protocolVer", dna::getProtocolVer);
+        putSafe(m, "appCmdSets", dna::getAppCmdSets);
+        putSafe(m, "dnaAes128Key", dna::getDnaAes128Key);
+        putSafe(m, "authorizedRoot", dna::getAuthorizedRoot);
+        putSafe(m, "authorizedUser", dna::getAuthorizedUser);
+        putSafe(m, "authorizedTempUser", dna::getAuthorizedTempUser);
+        putSafe(m, "rFModuleType", dna::getrFMoudleType);
+        putSafe(m, "lockFunctionType", dna::getLockFunctionType);
+        putSafe(m, "maximumVolume", dna::getMaximumVolume);
+        putSafe(m, "maximumUserNum", dna::getMaximumUserNum);
+        putSafe(m, "menuFeature", dna::getMenuFeature);
+        putSafe(m, "fingerPrintfNum", dna::getFingerPrintfNum);
+        putSafe(m, "projectID", dna::getProjectID);
+        putSafe(m, "rFModuleMac", dna::getRFModuleMac);
+        putSafe(m, "motorDriverMode", dna::getMotorDriverMode);
+        putSafe(m, "motorSetMenuFunction", dna::getMotorSetMenuFunction);
+        putSafe(m, "MoudleFunction", dna::getMoudleFunction);
+        putSafe(m, "BleActiveTimes", dna::getBleActiveTimes);
+        putSafe(m, "ModuleSoftwareVer", dna::getModuleSoftwareVer);
+        putSafe(m, "ModuleHardwareVer", dna::getModuleHardwareVer);
+        putSafe(m, "passwordNumRange", dna::getPasswordNumRange);
+        putSafe(m, "OfflinePasswordVer", dna::getOfflinePasswordVer);
+        putSafe(m, "supportSystemLanguage", dna::getSupportSystemLanguage);
+        putSafe(m, "hotelFunctionEn", dna::getHotelFunctionEn);
+        putSafe(m, "schoolOpenNormorl", dna::getSchoolOpenNormorl);
+        putSafe(m, "cabinetLock", dna::getCabinetLock);
+        putSafe(m, "lockSystemFunction", dna::getLockSystemFunction);
+        putSafe(m, "lockNetSystemFunction", dna::getLockNetSystemFunction);
+        putSafe(m, "sysLanguage", dna::getSysLanguage);
+        putSafe(m, "keyAddMenuType", dna::getKeyAddMenuType);
+        putSafe(m, "functionFlag", dna::getFunctionFlag);
+        putSafe(m, "bleSmartCardNfcFunction", dna::getBleSmartCardNfcFunction);
+        putSafe(m, "wisapartmentCardFunction", dna::getWisapartmentCardFunction);
+        putSafe(m, "lockCompanyId", dna::getLockCompanyId);
+        putSafe(m, "deviceDnaInfoStr", dna::getDeviceDnaInfoStr);
         return m;
     }
 
     private Map<String, Object> sysParamToMap(SysParamResult s) {
-        Map<String, Object> m = new HashMap<>();
-        if (s == null) return m;
-        putSafe(m, "raw", () -> s.toString());
-        putSafe(m, "deviceStatusStr", () -> s.getDeviceStatusStr());
-        return m;
+        // Expose all fields via reflection for richer UI/debug output
+        return objectToMap(s);
     }
 
     // Small functional getter that can throw; allows central Exception handling and logging
@@ -443,17 +442,16 @@ public class BleLockManager {
                         @Override
                         public void onResponse(Response<SysParamResult> resp) {
                             Map<String, Object> finalMap2 = new HashMap<>();
-                            Map<String, Object> responses2 = responses;
 
                             // Map getSysParam response once and extract body
                             Map<String, Object> sysMap = responseToMap(resp, null);
-                            responses2.put("getSysParam", sysMap);
+                            responses.put("getSysParam", sysMap);
 
                             // Follow native flow: require explicit ACK_STATUS_SUCCESS
                             if (resp.code() != StatusCode.ACK_STATUS_SUCCESS || resp.body() == null) {
                                 finalMap2.put("ok", false);
                                 finalMap2.put("stage", "getSysParam");
-                                finalMap2.put("responses", responses2);
+                                finalMap2.put("responses", responses);
                                 finalMap2.put("dnaInfo", dnaMap);
                                 finalMap2.put("sysParam", null);
                                 try { finalMap2.put("message", ackMessageForCode(resp.code())); } catch (Throwable ignored) {}
@@ -465,10 +463,8 @@ public class BleLockManager {
                             Map<String, Object> sysBody = null;
                             final SysParamResult deviceStatusObj = resp.body();
                             try {
-                                if (deviceStatusObj != null) {
-                                    sysBody = sysParamToMap(deviceStatusObj);
-                                    try { Log.d(TAG, "deviceStatusStr: " + deviceStatusObj.getDeviceStatusStr()); } catch (Throwable ignored) {}
-                                }
+                                sysBody = sysParamToMap(deviceStatusObj);
+                                try { Log.d(TAG, "deviceStatusStr: " + deviceStatusObj.getDeviceStatusStr()); } catch (Throwable ignored) {}
                             } catch (Throwable ignored) { sysBody = null; }
 
                             // pairSuccessInd
@@ -480,7 +476,7 @@ public class BleLockManager {
                                         bleClient.disConnectBle(null);
 
                                         Map<String, Object> finalMap3 = new HashMap<>();
-                                        Map<String, Object> responses3 = responses2;
+                                        Map<String, Object> responses3 = responses;
 
                                         Map<String, Object> pairMap = responseToMap(pairResp, null);
                                         responses3.put("pairSuccessInd", pairMap);
@@ -715,6 +711,251 @@ public class BleLockManager {
             });
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling rfModuleReg", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Convert an arbitrary SDK model object into a Map<String,Object> via
+     * reflection. Similar to LockRecordManager.mapRecord but kept local to
+     * this manager for reuse when mapping AddLockKeyResult and others.
+     */
+    private Map<String, Object> objectToMap(Object obj) {
+        Map<String, Object> out = new HashMap<>();
+        if (obj == null) return out;
+        Class<?> clazz = obj.getClass();
+        out.put("modelType", clazz.getSimpleName());
+
+        while (clazz != null && clazz != Object.class) {
+            java.lang.reflect.Field[] fields = clazz.getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                field.setAccessible(true);
+                try {
+                    Object value = field.get(obj);
+                    if (value == null) continue;
+                    if (value instanceof Number || value instanceof Boolean || value instanceof String) {
+                        out.put(field.getName(), value);
+                    } else {
+                        out.put(field.getName(), value.toString());
+                    }
+                } catch (IllegalAccessException e) {
+                    Log.w(TAG, "Unable to read field " + field.getName() + " from " + clazz.getSimpleName(), e);
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return out;
+    }
+
+    /**
+     * Call the vendor SDK to add a lock key and map the AddLockKeyResult
+     * back to a stable Map for Dart.
+     */
+    public void addLockKey(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "addLockKey called with args: " + args);
+
+        try {
+            AddLockKeyAction action = new AddLockKeyAction();
+
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            // If caller provided an `action` map, populate the AddLockKeyAction
+            // fields from it. Fail fast with INVALID_ARGS when types are wrong.
+            if (args != null && args.containsKey("action") && args.get("action") instanceof Map) {
+                Map actionMap = (Map) args.get("action");
+                try {
+                    // Directly assign and parse values; let exceptions bubble to catch
+                    action.setPassword(Objects.requireNonNull(actionMap.get("password")).toString());
+                    action.setStatus(Integer.parseInt(Objects.requireNonNull(actionMap.get("status")).toString()));
+                    action.setLocalRemoteMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("localRemoteMode")).toString()));
+                    action.setAuthorMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("authorMode")).toString()));
+                    action.setKeyDataType(Integer.parseInt(Objects.requireNonNull(actionMap.get("keyDataType")).toString()));
+                    action.setVaildMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("vaildMode")).toString()));
+                    action.setAddedKeyType(Integer.parseInt(Objects.requireNonNull(actionMap.get("addedKeyType")).toString()));
+                    action.setAddedKeyID(Integer.parseInt(Objects.requireNonNull(actionMap.get(actionMap.get("addedKeyId"))).toString()));
+                    action.setAddedKeyGroupId(Integer.parseInt(Objects.requireNonNull(actionMap.get(actionMap.get("addedKeyGroupID"))).toString()));
+                    action.setModifyTimestamp(Long.parseLong(Objects.requireNonNull(actionMap.get("modifyTimestamp")).toString()));
+                    action.setValidStartTime(Long.parseLong(Objects.requireNonNull(actionMap.get("validStartTime")).toString()));
+                    action.setValidEndTime(Long.parseLong(Objects.requireNonNull(actionMap.get("validEndTime")).toString()));
+                    action.setWeek(Integer.parseInt(Objects.requireNonNull(actionMap.get("week")).toString()));
+                    action.setDayStartTimes(Integer.parseInt(Objects.requireNonNull(actionMap.get("dayStartTimes")).toString()));
+                    action.setDayEndTimes(Integer.parseInt(Objects.requireNonNull(actionMap.get("dayEndTimes")).toString()));
+                    action.setVaildNumber(Integer.parseInt(Objects.requireNonNull(actionMap.get("vaildNumber")).toString()));
+                } catch (Exception e) {
+                    Log.w(TAG, "Invalid addLockKey action map", e);
+                    postResultError(result, "INVALID_ARGS", "Invalid addLockKey action: " + e.getMessage(), null);
+                    return;
+                }
+            }
+
+            // Log the fully built action for debugging
+            try { Log.d(TAG, "addLockKey action built: " + objectToMap(action)); } catch (Throwable ignored) {}
+
+            bleClient.addLockKey(action, new FunCallback<AddLockKeyResult>() {
+                @Override
+                public void onResponse(Response<AddLockKeyResult> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        try {
+                            Map<String, Object> bodyMap = objectToMap(response.body());
+                            postResultSuccess(result, responseToMap(response, bodyMap));
+                        } catch (Throwable t) {
+                            postResultError(result, "ERROR", t.getMessage(), null);
+                        }
+                    } else {
+                        try {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        } catch (Throwable t) {
+                            postResultError(result, "FAILED", "Code: " + response.code(), null);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "addLockKey failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling addLockKey", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Call the vendor SDK to synchronize keys on the lock and map results.
+     */
+    public void syncLockKey(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "syncLockKey called with args: " + args);
+        try {
+            int lastSync = 2;
+            if (args != null && args.containsKey("lastSyncTimestamp")) {
+                Object v = args.get("lastSyncTimestamp");
+                if (v instanceof Integer) lastSync = (Integer) v;
+                else if (v instanceof Number) lastSync = ((Number) v).intValue();
+                else if (v instanceof String) {
+                    try { lastSync = Integer.parseInt((String) v); } catch (Exception ignored) {}
+                }
+            }
+
+            SyncLockKeyAction action = new SyncLockKeyAction(lastSync);
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            bleClient.syncLockKey(action, new FunCallback<LockKeyResult>() {
+                @Override
+                public void onResponse(Response<LockKeyResult> response) {
+                    if (response.isSuccessful()) {
+                        LockKeyResult body = null;
+                        try { body = response.body(); } catch (Throwable ignored) { body = null; }
+                        Object bodyToMap = null;
+                        if (body != null) bodyToMap = objectToMap(body);
+                        postResultSuccess(result, responseToMap(response, bodyToMap));
+                    } else {
+                        try {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        } catch (Throwable t) {
+                            postResultError(result, "FAILED", "Code: " + response.code(), null);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "syncLockKey failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling syncLockKey", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Sync the lock's internal clock/time.
+     * Expects `args` to contain auth fields used by PluginUtils.createAuthAction.
+     */
+    public void syncLockTime(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "syncLockTime called with args: " + args);
+        try {
+            BlinkyAction action = new BlinkyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            bleClient.syncLockTime(action, new FunCallback<Object>() {
+                @Override
+                public void onResponse(Response<Object> response) {
+                    if (response.isSuccessful()) {
+                        postResultSuccess(result, true);
+                    } else {
+                        try {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        } catch (Throwable t) {
+                            postResultError(result, "FAILED", "Code: " + response.code(), null);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "syncLockTime failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling syncLockTime", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Retrieve system parameters (SysParamResult) from the lock.
+     */
+    public void getSysParam(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "getSysParam called with args: " + args);
+        try {
+            BlinkyAction action = new BlinkyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            bleClient.getSysParam(action, new FunCallback<SysParamResult>() {
+                @Override
+                public void onResponse(Response<SysParamResult> response) {
+                    if (response.isSuccessful()) {
+                        Map<String, Object> bodyMap = null;
+                        try {
+                            SysParamResult body = response.body();
+                            if (body != null) bodyMap = sysParamToMap(body);
+                        } catch (Throwable ignored) {}
+                        postResultSuccess(result, responseToMap(response, bodyMap));
+                    } else {
+                        try {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        } catch (Throwable t) {
+                            postResultError(result, "FAILED", "Code: " + response.code(), null);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "getSysParam failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling getSysParam", t);
             postResultError(result, "ERROR", t.getMessage(), null);
         }
     }

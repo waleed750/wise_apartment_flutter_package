@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'wise_apartment_platform_interface.dart';
 import 'src/wise_apartment_exception.dart';
 import 'src/wise_status_store.dart';
+import 'src/models/keys/add_lock_key_action_model.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
@@ -183,7 +184,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   /// - third bit = 1  → Gen2 only
   /// - otherwise     → Gen1 only
   bool isSecondGenerationRecord(int menuFeature) {
-    return (menuFeature & 0x4) == 1; // 0x4 = third bit
+    return (menuFeature & 0x4) != 0; // 0x4 = third bit
   }
 
   @override
@@ -246,6 +247,64 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @override
   Future<bool> disconnectBle() async {
     return _invokeBool('disconnectBle');
+  }
+
+  @override
+  Future<Map<String, dynamic>> addLockKey(
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+
+    // Build an AddLockKeyActionModel from provided params. Prefer a nested
+    // `action` map if present, otherwise use `params` directly.
+    AddLockKeyActionModel actionModel;
+    final dynamic maybeAction = params['action'];
+    if (maybeAction is Map) {
+      actionModel = AddLockKeyActionModel.fromMap(
+        Map<String, dynamic>.from(maybeAction),
+      );
+    } else {
+      actionModel = AddLockKeyActionModel.fromMap(params);
+    }
+
+    // Attach the action map under the `action` key for the native side.
+    args['action'] = actionModel.toMap();
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('addLockKey', args);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) async {
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('syncLockKey', auth);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<bool> syncLockTime(Map<String, dynamic> auth) async {
+    return _invokeBool('syncLockTime', auth);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) async {
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('getSysParam', auth);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
   }
 
   Future<bool> _invokeBool(String method, [dynamic arguments]) async {

@@ -99,6 +99,33 @@ class MockWiseApartmentPlatform
     // TODO: implement disconnectBle
     throw UnimplementedError();
   }
+
+  @override
+  Future<Map<String, dynamic>> addLockKey(
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  ) {
+    // TODO: implement addLockKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
+    // TODO: implement syncLockKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> syncLockTime(Map<String, dynamic> auth) {
+    // TODO: implement syncLockTime
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
+    // TODO: implement getSysParam
+    throw UnimplementedError();
+  }
 }
 
 void main() {

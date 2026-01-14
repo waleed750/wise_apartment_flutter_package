@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:wise_apartment/src/models/dna_info_model.dart';
@@ -35,6 +36,7 @@ class ApiService {
         final data = j['data'] as Map<String, dynamic>?;
         final token = data != null ? (data['tokenId'] as String?) : null;
         _platformToken = token;
+        log('Platform login successful, token: $token');
         return token;
       }
     } catch (_) {
@@ -49,6 +51,9 @@ class ApiService {
     required String? initFlag,
     required int? bleProtocolVersion,
     required int? menuFeature,
+    required int? moduleFunction,
+    required int? lockSystemFunction,
+    required int? lockNetSystemFunction,
   }) async {
     final payload = {
       'method': 'hxjGetLockToken',
@@ -58,6 +63,9 @@ class ApiService {
         'initFlag': initFlag ?? '',
         'bleProtocolVersion': bleProtocolVersion ?? 0,
         'menuFeature': menuFeature ?? 0,
+        'moduleFunction': moduleFunction ?? 0,
+        'lockSystemFunction': lockSystemFunction ?? 0,
+        'lockNetSystemFunction': lockNetSystemFunction ?? 0,
       },
     };
 
@@ -91,12 +99,18 @@ class ApiService {
     final initFlag = device.initTag;
     final bleProtocolVersion = device.protocolVer;
     final menuFeature = device.menuFeature;
+    final deviceMoudleFunction = device.MoudleFunction;
+    final deviceLockSystemFunction = device.lockSystemFunction;
+    final deviceLockNetSystemFunction = device.lockNetSystemFunction;
     final lockToken = await hxjGetLockToken(
       platformToken: platform,
       lockMac: lockMac,
       initFlag: initFlag,
       bleProtocolVersion: bleProtocolVersion,
       menuFeature: menuFeature,
+      moduleFunction: deviceMoudleFunction,
+      lockSystemFunction: deviceLockSystemFunction,
+      lockNetSystemFunction: deviceLockNetSystemFunction,
     );
     return lockToken ?? platform;
   }
