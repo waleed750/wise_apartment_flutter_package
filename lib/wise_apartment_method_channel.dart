@@ -252,20 +252,33 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @override
   Future<Map<String, dynamic>> addLockKey(
     Map<String, dynamic> auth,
-    Map<String, dynamic> params,
+    dynamic params,
   ) async {
     final args = Map<String, dynamic>.from(auth);
 
-    // Build an AddLockKeyActionModel from provided params. Prefer a nested
-    // `action` map if present, otherwise use `params` directly.
+    // Accept either an AddLockKeyActionModel or a Map. If a model is
+    // provided, use it directly; otherwise build the model from the Map.
     AddLockKeyActionModel actionModel;
-    final dynamic maybeAction = params['action'];
-    if (maybeAction is Map) {
-      actionModel = AddLockKeyActionModel.fromMap(
-        Map<String, dynamic>.from(maybeAction),
-      );
+    if (params is AddLockKeyActionModel) {
+      actionModel = params;
+    } else if (params is Map) {
+      final dynamic maybeAction = params['action'];
+      if (maybeAction is Map) {
+        actionModel = AddLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(maybeAction),
+        );
+      } else {
+        actionModel = AddLockKeyActionModel.fromMap(
+          Map<String, dynamic>.from(params),
+        );
+      }
     } else {
-      actionModel = AddLockKeyActionModel.fromMap(params);
+      // Fallback: attempt to parse via toMap if available, otherwise empty
+      try {
+        actionModel = (params as AddLockKeyActionModel);
+      } catch (_) {
+        actionModel = AddLockKeyActionModel();
+      }
     }
 
     // Attach the action map under the `action` key for the native side.

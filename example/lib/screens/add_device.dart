@@ -158,34 +158,35 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       }
       final cipType = device.chipType ?? 0;
       final res = await _plugin.addDevice(mac, cipType);
+      // Ensure we treat the platform response as a Map<String,dynamic>
+      final Map<String, dynamic> resMap = Map<String, dynamic>.from(res);
       // Attempt to capture a numeric code from the top-level response or nested responses
       WiseStatusHandler? status;
       try {
-        status = WiseStatusStore.setFromMap(res);
+        status = WiseStatusStore.setFromMap(resMap);
         // If not present, try to extract nested stage response
-        if (status?.code == null &&
-            res is Map &&
-            res.containsKey('responses')) {
-          final stage = res['stage'];
-          final responses = res['responses'];
+        if (status?.code == null && resMap.containsKey('responses')) {
+          final stage = resMap['stage'];
+          final responses = resMap['responses'];
           if (responses is Map &&
               stage != null &&
               responses.containsKey(stage)) {
             final nested = responses[stage];
-            if (nested is Map)
+            if (nested is Map) {
               status = WiseStatusStore.setFromMap(
-                nested as Map<String, dynamic>?,
+                Map<String, dynamic>.from(nested),
               );
+            }
           }
         }
       } catch (_) {}
       Map<String, dynamic>? toSave;
 
       // Log for debugging
-      debugPrint('addDevice response map: $res');
-      final ok = res['ok'] as bool? ?? false;
-      final stage = res['stage'];
-      final responses = res['responses'];
+      debugPrint('addDevice response map: $resMap');
+      final ok = resMap['ok'] as bool? ?? false;
+      final stage = resMap['stage'];
+      final responses = resMap['responses'];
 
       if (ok) {
         // prefer dnaInfo if provided

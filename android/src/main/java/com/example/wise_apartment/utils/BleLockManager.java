@@ -136,6 +136,42 @@ public class BleLockManager {
         }
     }
 
+    // Safe parsers for values coming from MethodChannel maps. These
+    // tolerate Integer, Double, Long, and String inputs and return a
+    // fallback when parsing fails or value is null.
+    private int parseInt(Object o, int fallback) {
+        if (o == null) return fallback;
+        try {
+            if (o instanceof Number) return ((Number) o).intValue();
+            String s = o.toString();
+            if (s.isEmpty()) return fallback;
+            if (s.contains(".")) return (int) Double.parseDouble(s);
+            return Integer.parseInt(s);
+        } catch (Exception e) {
+            Log.w(TAG, "parseInt failed for: " + o, e);
+            return fallback;
+        }
+    }
+
+    private long parseLong(Object o, long fallback) {
+        if (o == null) return fallback;
+        try {
+            if (o instanceof Number) return ((Number) o).longValue();
+            String s = o.toString();
+            if (s.isEmpty()) return fallback;
+            if (s.contains(".")) return (long) Double.parseDouble(s);
+            return Long.parseLong(s);
+        } catch (Exception e) {
+            Log.w(TAG, "parseLong failed for: " + o, e);
+            return fallback;
+        }
+    }
+
+    private String parseString(Object o, String fallback) {
+        if (o == null) return fallback;
+        try { return o.toString(); } catch (Exception e) { return fallback; }
+    }
+
     // Helper to ensure MethodChannel.Result callbacks run on the main thread.
     private void postResultSuccess(final Result result, final Object value) {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
@@ -765,23 +801,27 @@ public class BleLockManager {
             if (args != null && args.containsKey("action") && args.get("action") instanceof Map) {
                 Map actionMap = (Map) args.get("action");
                 try {
-                    // Directly assign and parse values; let exceptions bubble to catch
-                    action.setPassword(Objects.requireNonNull(actionMap.get("password")).toString());
-                    action.setStatus(Integer.parseInt(Objects.requireNonNull(actionMap.get("status")).toString()));
-                    action.setLocalRemoteMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("localRemoteMode")).toString()));
-                    action.setAuthorMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("authorMode")).toString()));
-                    action.setKeyDataType(Integer.parseInt(Objects.requireNonNull(actionMap.get("keyDataType")).toString()));
-                    action.setVaildMode(Integer.parseInt(Objects.requireNonNull(actionMap.get("vaildMode")).toString()));
-                    action.setAddedKeyType(Integer.parseInt(Objects.requireNonNull(actionMap.get("addedKeyType")).toString()));
-                    action.setAddedKeyID(Integer.parseInt(Objects.requireNonNull(actionMap.get(actionMap.get("addedKeyId"))).toString()));
-                    action.setAddedKeyGroupId(Integer.parseInt(Objects.requireNonNull(actionMap.get(actionMap.get("addedKeyGroupID"))).toString()));
-                    action.setModifyTimestamp(Long.parseLong(Objects.requireNonNull(actionMap.get("modifyTimestamp")).toString()));
-                    action.setValidStartTime(Long.parseLong(Objects.requireNonNull(actionMap.get("validStartTime")).toString()));
-                    action.setValidEndTime(Long.parseLong(Objects.requireNonNull(actionMap.get("validEndTime")).toString()));
-                    action.setWeek(Integer.parseInt(Objects.requireNonNull(actionMap.get("week")).toString()));
-                    action.setDayStartTimes(Integer.parseInt(Objects.requireNonNull(actionMap.get("dayStartTimes")).toString()));
-                    action.setDayEndTimes(Integer.parseInt(Objects.requireNonNull(actionMap.get("dayEndTimes")).toString()));
-                    action.setVaildNumber(Integer.parseInt(Objects.requireNonNull(actionMap.get("vaildNumber")).toString()));
+                    // Use safe parsers. If a required field is missing/invalid the
+                    // existing catch will return INVALID_ARGS to Dart.
+                    action.setPassword(parseString(actionMap.get("password"), ""));
+                    action.setStatus(parseInt(actionMap.get("status"), 0));
+                    action.setLocalRemoteMode(parseInt(actionMap.get("localRemoteMode"), 0));
+                    action.setAuthorMode(parseInt(actionMap.get("authorMode"), 0));
+                    action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
+//                    final int keyDataType = parseInt(actionMap.get("keyDataType"), 0);
+//                    action.setKeyDataType(keyDataType);
+                    action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
+                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
+
+                    final int addedKeyGroupID = parseInt(actionMap.get("addedKeyGroupId"), 0);
+                    action.setAddedKeyGroupId(addedKeyGroupID);
+                    action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
+                    action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
+                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFFL));
+                    action.setWeek(parseInt(actionMap.get("week"), 0));
+                    action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
+                    action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 0));
+                    action.setVaildNumber(parseInt(actionMap.get("vaildNumber"), 0));
                 } catch (Exception e) {
                     Log.w(TAG, "Invalid addLockKey action map", e);
                     postResultError(result, "INVALID_ARGS", "Invalid addLockKey action: " + e.getMessage(), null);

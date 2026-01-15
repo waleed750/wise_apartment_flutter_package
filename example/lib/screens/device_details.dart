@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'sync_loc_records.dart';
-import 'add_key_screen.dart';
 import 'sync_keys_screen.dart';
 import 'dna_info_screen.dart';
+import 'add_lock_key_screen.dart';
+import 'package:wise_apartment/src/models/keys/add_lock_key_action_model.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
@@ -230,29 +231,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     });
   }
 
-  /// Ensure required BLE/runtime permissions are granted. Returns true
-  /// when permissions are available for connect/disconnect operations.
-  Future<bool> _ensureBlePermissions() async {
-    try {
-      final perms = <Permission>[
-        Permission.location,
-        Permission.bluetooth,
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-      ];
-
-      for (final p in perms) {
-        final status = await p.status;
-        if (!status.isGranted) {
-          final req = await p.request();
-          if (!req.isGranted) return false;
-        }
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  /// (removed) BLE permission helper was unused and created analyzer noise.
 
   Future<void> _registerWifi() async {
     setState(() => _busy = true);
@@ -474,9 +453,12 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                   onPressed: () async {
                     final auth = widget.device.toMap();
                     if (!mounted) return;
+                    // Pass a typed AddLockKeyActionModel as defaults instead of a raw Map
+                    final defaults = AddLockKeyActionModel();
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => AddKeyScreen(auth: auth),
+                        builder: (_) =>
+                            AddLockKeyScreen(auth: auth, defaults: defaults),
                       ),
                     );
                   },

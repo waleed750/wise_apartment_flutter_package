@@ -37,15 +37,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
   final _weekController = TextEditingController();
   final _dayStartController = TextEditingController();
   final _dayEndController = TextEditingController();
-  // KeyType options (kept as MapEntry<int,String> for code+label). Use index selection in UI.
-  final List<MapEntry<int, String>> _keyTypeOptions = [
-    MapEntry(1, 'Add fingerprint'),
-    MapEntry(4, 'Add card'),
-    MapEntry(8, 'Add remote control'),
-    MapEntry(2, 'Add password'),
-    MapEntry(4, 'Add card number'),
-  ];
-  int? _selectedKeyOptionIndex;
+  // KeyType options are not used in this screen; removed to avoid analyzer warnings.
   final _storage = const FlutterSecureStorage();
   bool _adding = false;
   @override
@@ -129,13 +121,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
 
   Future<void> _showAddKeySheet() async {
     // populate defaults similar to AddKeyScreen
-    final Map<String, dynamic> defaults = {
-      'keyDataType': 1,
-      'keyType': 1,
-      'keyLen': 6,
-      'key': '123456',
-    };
-
+    final AddLockKeyActionModel defaults = AddLockKeyActionModel();
     try {
       final mac = widget.auth['mac'] as String? ?? 'unknown_mac';
       final key = 'wise_saved_keys_$mac';
@@ -149,10 +135,11 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
             final v = last['addedKeyGroupId'];
             if (v is int) {
               lastGroupId = v;
-            } else if (v is String)
+            } else if (v is String) {
               lastGroupId = int.tryParse(v);
+            }
           }
-          if (lastGroupId != null) defaults['addedKeyGroupId'] = lastGroupId;
+          if (lastGroupId != null) defaults.addedKeyGroupId = lastGroupId;
         }
       }
     } catch (_) {}

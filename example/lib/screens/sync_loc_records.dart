@@ -123,24 +123,7 @@ class _SyncLocRecordsScreenState extends State<SyncLocRecordsScreen> {
     );
   }
 
-  String _prettyRecord(Map<String, dynamic> r) {
-    // Show some key fields compactly if available
-    final keys = [
-      'time',
-      'timestamp',
-      'user',
-      'cardId',
-      'eventType',
-      'event',
-      'modelType',
-    ];
-    final parts = <String>[];
-    for (final k in keys) {
-      if (r.containsKey(k)) parts.add('$k: ${r[k]}');
-    }
-    if (parts.isNotEmpty) return parts.join(' | ');
-    return r.entries.map((e) => '${e.key}: ${e.value}').join(', ');
-  }
+  // `_prettyRecord` removed — not referenced in the UI.
 
   @override
   Widget build(BuildContext context) {

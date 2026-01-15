@@ -4,7 +4,7 @@ class AddLockKeyActionModel {
   int status;
   int localRemoteMode;
   int? authorMode; // nullable per request
-  int keyDataType;
+
   int vaildMode;
   int addedKeyType;
   int addedKeyID;
@@ -22,7 +22,7 @@ class AddLockKeyActionModel {
     this.status = 0,
     this.localRemoteMode = 1,
     this.authorMode,
-    this.keyDataType = 0,
+
     this.vaildMode = 0,
     this.addedKeyType = 0,
     this.addedKeyID = 0,
@@ -33,7 +33,9 @@ class AddLockKeyActionModel {
     this.week = 0,
     this.dayStartTimes = 0,
     this.dayEndTimes = 0,
-    this.vaildNumber = 0,
+    this.vaildNumber = 255, // Number of authorizations: 0x01: 1 means 1 time
+    // 0xFF: 255 means unlimited times
+    // 0x00: 0 disable
   });
 
   factory AddLockKeyActionModel.fromMap(Map<String, dynamic>? m) {
@@ -51,7 +53,6 @@ class AddLockKeyActionModel {
       authorMode: m.containsKey('authorMode')
           ? parseInt(m['authorMode'])
           : null,
-      keyDataType: parseInt(m['keyDataType']) ?? 0,
       vaildMode: parseInt(m['vaildMode']) ?? 0,
       addedKeyType: parseInt(m['addedKeyType']) ?? 0,
       addedKeyID: parseInt(m['addedKeyID']) ?? 0,
@@ -71,7 +72,7 @@ class AddLockKeyActionModel {
     'status': status,
     'localRemoteMode': localRemoteMode,
     if (authorMode != null) 'authorMode': authorMode,
-    'keyDataType': keyDataType,
+
     'vaildMode': vaildMode,
     'addedKeyType': addedKeyType,
     'addedKeyID': addedKeyID,
@@ -188,7 +189,6 @@ class AddLockKeyActionModel {
     int var1 = (localRemoteMode == 1) ? 1 : 0;
     int var2 = (authorMode == 1) ? 2 : 0;
     int var3 = (vaildMode == 1) ? 4 : 0;
-    int var4 = (keyDataType == 1) ? 8 : 0;
-    return var1 | var2 | var3 | var4;
+    return var1 | var2 | var3;
   }
 }

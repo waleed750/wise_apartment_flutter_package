@@ -124,7 +124,7 @@ class WiseApartment {
   /// contains action-specific parameters required by the native SDK.
   Future<Map<String, dynamic>> addLockKey(
     Map<String, dynamic> auth,
-    Map<String, dynamic> params,
+    dynamic params,
   ) {
     return WiseApartmentPlatform.instance.addLockKey(auth, params);
   }

@@ -103,7 +103,7 @@ class MockWiseApartmentPlatform
   @override
   Future<Map<String, dynamic>> addLockKey(
     Map<String, dynamic> auth,
-    Map<String, dynamic> params,
+    dynamic params,
   ) {
     // TODO: implement addLockKey
     throw UnimplementedError();

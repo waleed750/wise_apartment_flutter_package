@@ -62,7 +62,7 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Returns a Map describing the result (code/ackMessage/body...).
   Future<Map<String, dynamic>> addLockKey(
     Map<String, dynamic> auth,
-    Map<String, dynamic> params,
+    dynamic params,
   );
 
   /// Synchronize keys on the lock. Accepts auth/DNA map and returns a Map

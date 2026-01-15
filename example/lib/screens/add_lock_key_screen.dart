@@ -1,15 +1,19 @@
 // ignore_for_file: curly_braces_in_flow_control_structures
 
+import 'dart:developer';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
-import 'package:wise_apartment/src/models/keys/add_lock_key_action_model.dart';
 
 class AddLockKeyScreen extends StatefulWidget {
   final Map<String, dynamic> auth;
-  final Map<String, dynamic>? defaults;
-  const AddLockKeyScreen({Key? key, required this.auth, this.defaults})
-    : super(key: key);
+  final AddLockKeyActionModel defaults;
+  const AddLockKeyScreen({
+    super.key,
+    required this.auth,
+    required this.defaults,
+  });
 
   @override
   State<AddLockKeyScreen> createState() => _AddLockKeyScreenState();
@@ -25,7 +29,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   final _validModeController = TextEditingController();
   final _localRemoteModeController = TextEditingController();
   final _statusController = TextEditingController();
-  final _addedKeyIDController = TextEditingController();
+
   final _modifyTimestampController = TextEditingController();
   final _validStartController = TextEditingController();
   final _validEndController = TextEditingController();
@@ -34,77 +38,100 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   final _dayStartController = TextEditingController();
   final _dayEndController = TextEditingController();
 
-  // UI-specific controllers / state for redesigned layout
-  final _userController = TextEditingController();
-  final _cellController = TextEditingController();
-  bool _appAuth = true;
-  bool _allowRemoteUnlock = false;
-  bool _allowAddingKeys = false;
+  // map of controller -> listener so we can remove listeners cleanly
+  final Map<TextEditingController, VoidCallback> _controllerListeners = {};
 
-  // Validity segmented control: 0=Limit,1=Permanent,2=Cycle,3=Periodic
+  // Validity segmented control: 0=Limit,1=Permanent,2=Cycle
   int _validitySegment = 2;
+  int _currentUserType = 0; // 0=regular,1=admin
   DateTime? _startDate;
   DateTime? _endDate;
   TimeOfDay? _dailyStart;
   TimeOfDay? _dailyEnd;
+
   final Set<int> _selectedWeekDays = {}; // 1..7 (Mon..Sun)
   // Cycle validNumber choice: 0=disabled, 1=one-time, 255=unlimited, -1 means unset/custom
   int _vaildNumberChoice = -1;
 
   final List<MapEntry<int, String>> _keyTypeOptions = [
+    MapEntry(2, 'Add password'),
     MapEntry(1, 'Add fingerprint'),
     MapEntry(4, 'Add card'),
     MapEntry(8, 'Add remote control'),
-    MapEntry(2, 'Add password'),
   ];
-  int? _selectedKeyOptionIndex = 0;
+  int _selectedKeyOptionIndex = 0;
+  late int authorMode;
   bool _adding = false;
 
   @override
   void initState() {
     super.initState();
-    final d = widget.defaults ?? {};
-    _addedKeyGroupIdController.text = d['addedKeyGroupId']?.toString() ?? '';
-    _passwordController.text = d['password']?.toString() ?? '';
-    _keyDataTypeController.text = d['keyDataType']?.toString() ?? '0';
-    _validModeController.text = d['vaildMode']?.toString() ?? '0';
-    _localRemoteModeController.text = d['localRemoteMode']?.toString() ?? '1';
-    _statusController.text = d['status']?.toString() ?? '0';
-    _addedKeyIDController.text = d['addedKeyID']?.toString() ?? '0';
-    _modifyTimestampController.text = d['modifyTimestamp']?.toString() ?? '0';
-    _validStartController.text = d['validStartTime']?.toString() ?? '0';
-    _validEndController.text = d['validEndTime']?.toString() ?? '0';
-    _vaildNumberController.text = d['vaildNumber']?.toString() ?? '0';
-    _weekController.text = d['week']?.toString() ?? '0';
-    _dayStartController.text = d['dayStartTimes']?.toString() ?? '0';
-    _dayEndController.text = d['dayEndTimes']?.toString() ?? '0';
-
-    _userController.text = d['user']?.toString() ?? '';
-    _cellController.text = d['cell']?.toString() ?? '';
+    authorMode = widget.defaults.authorMode ?? 0;
+    _addedKeyGroupIdController.text = widget.defaults.addedKeyGroupId
+        .toString();
+    _passwordController.text = widget.defaults.password?.toString() ?? '';
+    _validModeController.text = widget.defaults.vaildMode.toString();
+    _localRemoteModeController.text = widget.defaults.localRemoteMode
+        .toString();
+    _statusController.text = widget.defaults.status.toString();
+    _modifyTimestampController.text = widget.defaults.modifyTimestamp
+        .toString();
+    _validStartController.text = widget.defaults.validStartTime.toString();
+    _validEndController.text = widget.defaults.validEndTime.toString();
+    _vaildNumberController.text = widget.defaults.vaildNumber.toString();
+    _weekController.text = widget.defaults.week.toString();
+    _dayStartController.text = widget.defaults.dayStartTimes.toString();
+    _dayEndController.text = widget.defaults.dayEndTimes.toString();
 
     // initialize vaildNumber choice from controller
     final vnInt = int.tryParse(_vaildNumberController.text) ?? 0;
-    if (vnInt == 0)
+    if (vnInt == 0) {
       _vaildNumberChoice = 0;
-    else if (vnInt == 1)
+    } else if (vnInt == 1)
       _vaildNumberChoice = 1;
     else if (vnInt == 0xFF)
       _vaildNumberChoice = 0xFF;
     else
       _vaildNumberChoice = -1;
 
-    if (d.containsKey('addedKeyType')) {
-      final at = d['addedKeyType'];
-      final atInt = (at is int) ? at : int.tryParse(at?.toString() ?? '');
-      if (atInt != null) {
-        final idx = _keyTypeOptions.indexWhere((e) => e.key == atInt);
-        if (idx != -1) _selectedKeyOptionIndex = idx;
+    final at = widget.defaults.addedKeyType;
+    final idx = _keyTypeOptions.indexWhere((e) => e.key == at);
+    if (idx != -1) _selectedKeyOptionIndex = idx;
+
+    // attach simple listeners to controllers so changes trigger UI updates
+    void _attach(TextEditingController c) {
+      void _l() {
+        if (mounted) setState(() {});
       }
+
+      c.addListener(_l);
+      _controllerListeners[c] = _l;
     }
+
+    _attach(_addedKeyGroupIdController);
+    _attach(_passwordController);
+    _attach(_validModeController);
+    _attach(_localRemoteModeController);
+    _attach(_statusController);
+    _attach(_modifyTimestampController);
+    _attach(_validStartController);
+    _attach(_validEndController);
+    _attach(_vaildNumberController);
+    _attach(_weekController);
+    _attach(_dayStartController);
+    _attach(_dayEndController);
   }
 
   @override
   void dispose() {
+    // remove listeners
+    _controllerListeners.forEach((ctrl, l) {
+      try {
+        ctrl.removeListener(l);
+      } catch (_) {}
+    });
+    _controllerListeners.clear();
+
     _addedKeyGroupIdController.dispose();
     _passwordController.dispose();
     _keyDataTypeController.dispose();
@@ -116,11 +143,9 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
     _weekController.dispose();
     _dayStartController.dispose();
     _dayEndController.dispose();
-    _userController.dispose();
-    _cellController.dispose();
     _localRemoteModeController.dispose();
     _statusController.dispose();
-    _addedKeyIDController.dispose();
+
     super.dispose();
   }
 
@@ -135,10 +160,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Add phone authorization',
-          style: TextStyle(fontSize: 16),
-        ),
+        title: const Text('Add phone authorization'),
         centerTitle: true,
         elevation: 0,
       ),
@@ -154,69 +176,126 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top switches
-              SwitchListTile(
-                title: const Text('App Auth', style: TextStyle(fontSize: 14)),
-                value: _appAuth,
-                onChanged: (v) => setState(() => _appAuth = v),
+              // SwitchListTile(
+              //   title: const Text('App Auth'),
+              //   value: _appAuth,
+              //   onChanged: (v) => setState(() => _appAuth = v),
+              // ),
+              // SwitchListTile(
+              //   title: Row(
+              //     children: [
+              //       const Text('Allow remote unlock'),
+              //       const SizedBox(width: 6),
+              //       Icon(Icons.help_outline, size: 16, color: Colors.grey[600]),
+              //     ],
+              //   ),
+              //   value: _allowRemoteUnlock,
+              //   onChanged: (v) => setState(() => _allowRemoteUnlock = v),
+              // ),
+              Text("Key Type "),
+              DropdownButton(
+                items: _keyTypeOptions
+                    .map(
+                      (e) => DropdownMenuItem<int>(
+                        value: e.key,
+                        child: Text(e.value),
+                      ),
+                    )
+                    .toList(),
+                value: _keyTypeOptions[_selectedKeyOptionIndex].key,
+                isExpanded: true,
+                onChanged: (v) {
+                  final idx = _keyTypeOptions.indexWhere((e) => e.key == v);
+                  if (idx != -1) setState(() => _selectedKeyOptionIndex = idx);
+                },
               ),
-              SwitchListTile(
-                title: Row(
-                  children: [
-                    const Text(
-                      'Allow remote unlock',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.help_outline, size: 14, color: Colors.grey[600]),
-                  ],
-                ),
-                value: _allowRemoteUnlock,
-                onChanged: (v) => setState(() => _allowRemoteUnlock = v),
-              ),
-              SwitchListTile(
-                title: Row(
-                  children: [
-                    const Text(
-                      'Allow adding keys',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.help_outline, size: 14, color: Colors.grey[600]),
-                  ],
-                ),
-                value: _allowAddingKeys,
-                onChanged: (v) => setState(() => _allowAddingKeys = v),
-              ),
-
               const SizedBox(height: 8),
 
               // User and Cell No.
-              TextFormField(
-                controller: _userController,
-                decoration: const InputDecoration(
-                  labelText: 'User *',
-                  labelStyle: TextStyle(fontSize: 14),
+              SizedBox(
+                height: 72,
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _addedKeyGroupIdController,
+                        decoration: InputDecoration(
+                          labelText:
+                              'User * ${_currentUserType == 0 ? 'Regular (2001-4095)' : '(Admin) (901-2000)'}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 1,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'User Type',
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            isExpanded: true,
+                            value: _currentUserType,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 0,
+                                child: Text('Regular'),
+                              ),
+                              DropdownMenuItem(value: 1, child: Text('Admin')),
+                            ],
+                            onChanged: (intv) {
+                              setState(() {
+                                _currentUserType = intv ?? 0;
+                                _currentUserType == 0
+                                    ? null
+                                    : _addedKeyGroupIdController.text = '';
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
+              // TextFormField(
+              //   controller: _cellController,
+              //   decoration: InputDecoration(
+              //     labelText: 'Cell No. *',
+              //     prefix: const Text('+1\u00A0'),
+              //     suffixIcon: Icon(Icons.contact_phone_outlined),
+              //   ),
+              //   keyboardType: TextInputType.phone,
+              // ),
               TextFormField(
-                controller: _cellController,
-                decoration: InputDecoration(
-                  labelText: 'Cell No. *',
-                  labelStyle: const TextStyle(fontSize: 14),
-                  prefix: const Text('+1\u00A0'),
-                  suffixIcon: Icon(Icons.contact_phone_outlined, size: 18),
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password (6-12 digits)',
                 ),
-                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return "Password is required";
+                  }
+                  if (value.length < 6 || value.length > 12) {
+                    return "Password must be 6-12 digits";
+                  }
+                  return null;
+                },
+                keyboardType: TextInputType.number,
               ),
-
               const SizedBox(height: 12),
 
               // Validity segmented control
               Text(
                 'Validity period',
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -225,25 +304,25 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                 groupValue: _validitySegment,
                 children: const {
                   0: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    child: Text('Limit', style: TextStyle(fontSize: 13)),
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: Text('Limit'),
                   ),
                   1: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    child: Text('one Time', style: TextStyle(fontSize: 13)),
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: Text('one Time'),
                   ),
                   2: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    child: Text('Permanent', style: TextStyle(fontSize: 13)),
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: Text('Permanent'),
                   ),
                   3: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    child: Text('Cycle', style: TextStyle(fontSize: 13)),
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: Text('Cycle'),
                   ),
                 },
                 onValueChanged: (v) => setState(() {
                   _validitySegment = v;
-                  if (v == 2) {
+                  if (v == 1) {
                     // Permanent: clear dates and set controllers to 0
                     _startDate = null;
                     _endDate = null;
@@ -257,10 +336,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
 
               if (_validitySegment != 2) ...[
                 ListTile(
-                  title: const Text(
-                    'Start Time *',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  title: const Text('Start Time *'),
                   trailing: Text(
                     _startDate == null
                         ? 'Not set'
@@ -269,7 +345,6 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                               .toIso8601String()
                               .split('T')
                               .first,
-                    style: const TextStyle(fontSize: 13),
                   ),
                   onTap: () async {
                     final now = DateTime.now();
@@ -283,10 +358,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                   },
                 ),
                 ListTile(
-                  title: const Text(
-                    'End Time *',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  title: const Text('End Time *'),
                   trailing: Text(
                     _endDate == null
                         ? 'Not set'
@@ -295,7 +367,6 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                               .toIso8601String()
                               .split('T')
                               .first,
-                    style: const TextStyle(fontSize: 13),
                   ),
                   onTap: () async {
                     final now = DateTime.now();
@@ -309,25 +380,19 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                   },
                 ),
 
-                // Cycle-only: allow setting number of authorizations
-                if (_validitySegment == 3) ...[
+                // Limit-only: allow setting number of authorizations
+                if (_validitySegment == 0) ...[
                   const SizedBox(height: 12),
                   Text(
                     'Number of authorizations',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: [
                       ChoiceChip(
-                        label: const Text(
-                          'Disable',
-                          style: TextStyle(fontSize: 13),
-                        ),
+                        label: const Text('Disable'),
                         selected: _vaildNumberChoice == 0,
                         onSelected: (s) {
                           setState(() {
@@ -340,10 +405,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                         },
                       ),
                       ChoiceChip(
-                        label: const Text(
-                          '1 time',
-                          style: TextStyle(fontSize: 13),
-                        ),
+                        label: const Text('1 time'),
                         selected: _vaildNumberChoice == 1,
                         onSelected: (s) {
                           setState(() {
@@ -356,10 +418,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                         },
                       ),
                       ChoiceChip(
-                        label: const Text(
-                          'Unlimited',
-                          style: TextStyle(fontSize: 13),
-                        ),
+                        label: const Text('Unlimited'),
                         selected: _vaildNumberChoice == 0xFF,
                         onSelected: (s) {
                           setState(() {
@@ -379,15 +438,11 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
               const SizedBox(height: 8),
               if (_validitySegment == 3) ...[
                 ListTile(
-                  title: const Text(
-                    'Daily start *',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  title: const Text('Daily start *'),
                   trailing: Text(
                     _dailyStart == null
                         ? 'All day'
                         : _dailyStart!.format(context),
-                    style: const TextStyle(fontSize: 13),
                   ),
                   onTap: () async {
                     final t = await showTimePicker(
@@ -399,13 +454,9 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                   },
                 ),
                 ListTile(
-                  title: const Text(
-                    'Daily end *',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  title: const Text('Daily end *'),
                   trailing: Text(
                     _dailyEnd == null ? 'All day' : _dailyEnd!.format(context),
-                    style: const TextStyle(fontSize: 13),
                   ),
                   onTap: () async {
                     final t = await showTimePicker(
@@ -419,12 +470,11 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
 
                 const SizedBox(height: 8),
                 ListTile(
-                  title: const Text('Repeat *', style: TextStyle(fontSize: 14)),
+                  title: const Text('Repeat *'),
                   trailing: Text(
                     _selectedWeekDays.isEmpty
                         ? 'Not set'
                         : '${_selectedWeekDays.length} days',
-                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
 
@@ -445,13 +495,14 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                     final day = i + 1; // 1..7
                     final selected = _selectedWeekDays.contains(day);
                     return ChoiceChip(
-                      label: Text(label, style: const TextStyle(fontSize: 13)),
+                      label: Text(label),
                       selected: selected,
                       onSelected: (s) => setState(() {
-                        if (s)
+                        if (s) {
                           _selectedWeekDays.add(day);
-                        else
+                        } else {
                           _selectedWeekDays.remove(day);
+                        }
                       }),
                     );
                   }),
@@ -468,29 +519,33 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Colors.blue,
                   ),
                   onPressed: _adding
                       ? null
                       : () async {
                           // Sync UI-specific fields into model-related controllers before submission
-                          if (_startDate != null)
+                          if (_startDate != null) {
                             _validStartController.text =
                                 (_startDate!.millisecondsSinceEpoch ~/ 1000)
                                     .toString();
-                          if (_endDate != null)
+                          }
+                          if (_endDate != null) {
                             _validEndController.text =
                                 (_endDate!.millisecondsSinceEpoch ~/ 1000)
                                     .toString();
-                          if (_dailyStart != null)
+                          }
+                          if (_dailyStart != null) {
                             _dayStartController.text =
                                 (_dailyStart!.hour * 60 + _dailyStart!.minute)
                                     .toString();
-                          if (_dailyEnd != null)
+                          }
+                          if (_dailyEnd != null) {
                             _dayEndController.text =
                                 (_dailyEnd!.hour * 60 + _dailyEnd!.minute)
                                     .toString();
+                          }
                           if (_selectedWeekDays.isNotEmpty) {
                             int mask = 0;
                             // Map Mon..Sun to bits 0..6
@@ -501,11 +556,10 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                           }
 
                           // keep the rest of the existing submission/validation logic
-                          if (_selectedKeyOptionIndex == null ||
-                              _selectedKeyOptionIndex! < 0 ||
-                              _selectedKeyOptionIndex! >=
+                          if (_selectedKeyOptionIndex < 0 ||
+                              _selectedKeyOptionIndex >=
                                   _keyTypeOptions.length) {
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
@@ -513,24 +567,49 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                   ),
                                 ),
                               );
+                            }
                             return;
                           }
 
-                          final int kt =
-                              _keyTypeOptions[_selectedKeyOptionIndex!].key;
+                          final int chosenKeyType =
+                              _keyTypeOptions[_selectedKeyOptionIndex].key;
                           final String selectedLabel =
-                              _keyTypeOptions[_selectedKeyOptionIndex!].value;
+                              _keyTypeOptions[_selectedKeyOptionIndex].value;
 
                           final password = _passwordController.text.trim();
                           if (password.isNotEmpty &&
-                              !RegExp(r'^\d{6,12}\$').hasMatch(password)) {
-                            if (mounted)
+                              (password.length < 6 || password.length > 12)) {
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Password must be 6-12 digits'),
                                 ),
                               );
+                            }
                             return;
+                          }
+
+                          // determine vaildNumber according to selection rules:
+                          // 0x01 -> one time, 0xFF -> unlimited, 0x00 -> disable
+                          int computedVn;
+                          if (_validitySegment == 1) {
+                            // one time
+                            computedVn = 0x01;
+                          } else if (_validitySegment == 2 ||
+                              _validitySegment == 3) {
+                            // permanent or cycle -> unlimited
+                            computedVn = 0xFF;
+                          } else {
+                            // Limit: honor choice chips or fallback to typed value
+                            if (_vaildNumberChoice == 0)
+                              computedVn = 0x00;
+                            else if (_vaildNumberChoice == 1)
+                              computedVn = 0x01;
+                            else if (_vaildNumberChoice == 0xFF)
+                              computedVn = 0xFF;
+                            else
+                              computedVn =
+                                  parseI(_vaildNumberController.text) ?? 0;
                           }
 
                           final actionModel = AddLockKeyActionModel(
@@ -544,72 +623,56 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                     )))
                                 ? 1
                                 : 0,
-                            keyDataType:
-                                parseI(_keyDataTypeController.text) ?? 0,
                             vaildMode:
                                 parseI(_validModeController.text) ??
                                 (_validitySegment == 0
                                     ? 0
-                                    : (_validitySegment == 2 ? 0 : 1)),
-                            addedKeyType: kt,
-                            addedKeyID: parseI(_addedKeyIDController.text) ?? 0,
+                                    : (_validitySegment == 1 ? 0 : 1)),
+                            addedKeyType: chosenKeyType,
+                            addedKeyID: 0,
                             addedKeyGroupId:
                                 parseI(_addedKeyGroupIdController.text) ?? 0,
                             modifyTimestamp:
                                 parseI(_modifyTimestampController.text) ?? 0,
                             validStartTime:
                                 parseI(_validStartController.text) ?? 0,
-                            validEndTime: parseI(_validEndController.text) ?? 0,
+                            validEndTime:
+                                parseI(_validEndController.text) ?? 0xFFFFFFFF,
                             week: parseI(_weekController.text) ?? 0,
                             dayStartTimes:
                                 parseI(_dayStartController.text) ?? 0,
                             dayEndTimes: parseI(_dayEndController.text) ?? 0,
-                            vaildNumber:
-                                parseI(_vaildNumberController.text) ?? 0,
+                            vaildNumber: computedVn,
                             localRemoteMode:
                                 parseI(_localRemoteModeController.text) ?? 1,
                             status: parseI(_statusController.text) ?? 0,
                           );
 
-                          // validate against authMode
-                          final amAuth = widget.auth['authMode'];
-                          int authModeVal = 0;
-                          if (amAuth is int) {
-                            authModeVal = amAuth;
-                          } else if (amAuth is String) {
-                            authModeVal = int.tryParse(amAuth) ?? 0;
-                          }
                           final allowedAuth0 = {1, 4, 8};
                           final allowedAuth1 = {2, 4};
-                          final int chosenKeyType = kt;
-                          if (!(authModeVal == 0
-                              ? allowedAuth0.contains(chosenKeyType)
-                              : allowedAuth1.contains(chosenKeyType))) {
-                            if (mounted)
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Selected keyType invalid for this authMode',
-                                  ),
-                                ),
-                              );
-                            return;
+                          final int? authorModeVal;
+                          if (allowedAuth0.contains(chosenKeyType)) {
+                            authorModeVal = 0;
+                          } else if (allowedAuth1.contains(chosenKeyType)) {
+                            authorModeVal = 1;
+                          } else {
+                            authorModeVal = 0;
                           }
-
                           // authorMode->password required
-                          final int? authorModeVal = actionModel.authorMode;
-                          if (authorModeVal != null && authorModeVal == 1) {
+
+                          if (authorModeVal == 1) {
                             final pw = actionModel.password;
                             if (pw == null ||
-                                !RegExp(r'^\d{6,12}\$').hasMatch(pw)) {
-                              if (mounted)
+                                !RegExp(r'^\d{6,12}$').hasMatch(pw)) {
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      'Password required (6-12 digits)',
+                                      'Password required when authorMode==1 and must be 6-12 digits',
                                     ),
                                   ),
                                 );
+                              }
                               return;
                             }
                           }
@@ -624,12 +687,15 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                 de < 0 ||
                                 de > 1439 ||
                                 de <= ds) {
-                              if (mounted)
+                              if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Invalid periodic settings'),
+                                    content: Text(
+                                      'vaildMode==1 requires valid week and day start/end minutes (0..1439, end>start)',
+                                    ),
                                   ),
                                 );
+                              }
                               return;
                             }
                           }
@@ -637,16 +703,17 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                           final int vs = actionModel.validStartTime;
                           final int ve = actionModel.validEndTime;
                           if (vs < 0) {
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('validStartTime must be >= 0'),
                                 ),
                               );
+                            }
                             return;
                           }
                           if (!(ve == 0xFFFFFFFF || ve >= vs)) {
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
@@ -654,29 +721,31 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                   ),
                                 ),
                               );
+                            }
                             return;
                           }
 
                           final int vn = actionModel.vaildNumber;
                           if (vn < 0 || vn > 0xFF) {
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('vaildNumber must be 0..255'),
+                                  content: Text(
+                                    'vaildNumber must be between 0 and 255',
+                                  ),
                                 ),
                               );
+                            }
                             return;
                           }
 
-                          final Map<String, dynamic> params = {
-                            'action': actionModel.toMap(),
-                          };
-
                           setState(() => _adding = true);
+                          final map = actionModel.toMap();
                           try {
+                            log('Adding lock key with action model: $map');
                             final res = await _plugin.addLockKey(
                               widget.auth,
-                              params,
+                              map,
                             );
                             if (!mounted) return;
                             Navigator.of(
@@ -689,7 +758,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                               codeStr = e.code;
                               msg = e.message;
                             }
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
@@ -697,13 +766,14 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                   ),
                                 ),
                               );
+                            }
                           } finally {
                             if (mounted) setState(() => _adding = false);
                           }
                         },
                   child: const Text(
                     'Add',
-                    style: TextStyle(fontSize: 14, color: Colors.white),
+                    style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),
@@ -717,5 +787,20 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
         ),
       ),
     );
+  }
+
+  String? validateUserID(int value) {
+    if (_currentUserType == 0) {
+      //user 2001~4095 Regular User
+      if (value < 2001 || value > 4095) {
+        return 'User ID for Regular User must be between 2001 and 4095';
+      }
+    } else {
+      //Admin 901~2000 Regular Administrator
+      if (value < 901 || value > 2000) {
+        return 'User ID for Regular Administrator must be between 901 and 2000';
+      }
+    }
+    return null;
   }
 }
