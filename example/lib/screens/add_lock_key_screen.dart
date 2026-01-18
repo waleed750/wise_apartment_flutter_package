@@ -62,11 +62,14 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   int _selectedKeyOptionIndex = 0;
   late int authorMode;
   bool _adding = false;
+  late AddLockKeyActionModel _actionModel;
 
   @override
   void initState() {
     super.initState();
     authorMode = widget.defaults.authorMode ?? 0;
+    // create a working model instance for the whole screen
+    _actionModel = AddLockKeyActionModel.fromMap(widget.defaults.toMap());
     _addedKeyGroupIdController.text = widget.defaults.addedKeyGroupId
         .toString();
     _passwordController.text = widget.defaults.password?.toString() ?? '';
@@ -160,7 +163,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add phone authorization'),
+        title: const Text('Add Lock Key'),
         centerTitle: true,
         elevation: 0,
       ),
@@ -192,8 +195,8 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
               //   value: _allowRemoteUnlock,
               //   onChanged: (v) => setState(() => _allowRemoteUnlock = v),
               // ),
-              Text("Key Type "),
-              DropdownButton(
+              Text('Key Type '),
+              DropdownButton<int>(
                 items: _keyTypeOptions
                     .map(
                       (e) => DropdownMenuItem<int>(
@@ -354,7 +357,14 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                       firstDate: DateTime(2000),
                       lastDate: DateTime(2100),
                     );
-                    if (dt != null) setState(() => _startDate = dt);
+                    if (dt != null)
+                      setState(() {
+                        _startDate = dt;
+                        _actionModel.validStartTime =
+                            AddLockKeyActionModel.dateTimeToEpochSeconds(dt);
+                        _validStartController.text = _actionModel.validStartTime
+                            .toString();
+                      });
                   },
                 ),
                 ListTile(
@@ -376,7 +386,14 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                       firstDate: DateTime(2000),
                       lastDate: DateTime(2100),
                     );
-                    if (dt != null) setState(() => _endDate = dt);
+                    if (dt != null)
+                      setState(() {
+                        _endDate = dt;
+                        _actionModel.validEndTime =
+                            AddLockKeyActionModel.dateTimeToEpochSeconds(dt);
+                        _validEndController.text = _actionModel.validEndTime
+                            .toString();
+                      });
                   },
                 ),
 
@@ -450,7 +467,13 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                       initialTime:
                           _dailyStart ?? const TimeOfDay(hour: 0, minute: 0),
                     );
-                    if (t != null) setState(() => _dailyStart = t);
+                    if (t != null)
+                      setState(() {
+                        _dailyStart = t;
+                        _actionModel.dayStartTimes = t.hour * 60 + t.minute;
+                        _dayStartController.text = _actionModel.dayStartTimes
+                            .toString();
+                      });
                   },
                 ),
                 ListTile(
@@ -464,7 +487,13 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                       initialTime:
                           _dailyEnd ?? const TimeOfDay(hour: 23, minute: 59),
                     );
-                    if (t != null) setState(() => _dailyEnd = t);
+                    if (t != null)
+                      setState(() {
+                        _dailyEnd = t;
+                        _actionModel.dayEndTimes = t.hour * 60 + t.minute;
+                        _dayEndController.text = _actionModel.dayEndTimes
+                            .toString();
+                      });
                   },
                 ),
 
@@ -503,6 +532,11 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                         } else {
                           _selectedWeekDays.remove(day);
                         }
+                        _actionModel.week =
+                            AddLockKeyActionModel.computeWeekMaskFromDays(
+                              _selectedWeekDays,
+                            );
+                        _weekController.text = _actionModel.week.toString();
                       }),
                     );
                   }),
@@ -612,41 +646,77 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                                   parseI(_vaildNumberController.text) ?? 0;
                           }
 
-                          final actionModel = AddLockKeyActionModel(
-                            password: password.isNotEmpty ? password : null,
-                            authorMode:
-                                ((selectedLabel.toLowerCase().contains(
-                                      'password',
-                                    ) ||
-                                    selectedLabel.toLowerCase().contains(
-                                      'card number',
-                                    )))
-                                ? 1
-                                : 0,
-                            vaildMode:
-                                parseI(_validModeController.text) ??
-                                (_validitySegment == 0
-                                    ? 0
-                                    : (_validitySegment == 1 ? 0 : 1)),
-                            addedKeyType: chosenKeyType,
-                            addedKeyID: 0,
-                            addedKeyGroupId:
-                                parseI(_addedKeyGroupIdController.text) ?? 0,
-                            modifyTimestamp:
-                                parseI(_modifyTimestampController.text) ?? 0,
-                            validStartTime:
-                                parseI(_validStartController.text) ?? 0,
-                            validEndTime:
-                                parseI(_validEndController.text) ?? 0xFFFFFFFF,
-                            week: parseI(_weekController.text) ?? 0,
-                            dayStartTimes:
-                                parseI(_dayStartController.text) ?? 0,
-                            dayEndTimes: parseI(_dayEndController.text) ?? 0,
-                            vaildNumber: computedVn,
-                            localRemoteMode:
-                                parseI(_localRemoteModeController.text) ?? 1,
-                            status: parseI(_statusController.text) ?? 0,
-                          );
+                          // Sync final model fields from UI into the persistent screen model
+                          _actionModel.password = password.isNotEmpty
+                              ? password
+                              : null;
+                          _actionModel.addedKeyType = chosenKeyType;
+                          _actionModel.addedKeyID = 0;
+                          _actionModel.addedKeyGroupId =
+                              parseI(_addedKeyGroupIdController.text) ??
+                              _actionModel.addedKeyGroupId;
+                          _actionModel.modifyTimestamp =
+                              parseI(_modifyTimestampController.text) ??
+                              _actionModel.modifyTimestamp;
+                          _actionModel.localRemoteMode =
+                              parseI(_localRemoteModeController.text) ??
+                              _actionModel.localRemoteMode;
+                          _actionModel.status =
+                              parseI(_statusController.text) ??
+                              _actionModel.status;
+                          _actionModel.authorMode =
+                              ((selectedLabel.toLowerCase().contains(
+                                    'password',
+                                  ) ||
+                                  selectedLabel.toLowerCase().contains(
+                                    'card number',
+                                  ))
+                              ? 1
+                              : 0);
+
+                          // apply validity helpers according to selected segment
+                          if (_validitySegment == 2) {
+                            _actionModel.applyPermanent(
+                              groupId: _actionModel.addedKeyGroupId > 0
+                                  ? _actionModel.addedKeyGroupId
+                                  : null,
+                            );
+                          } else if (_validitySegment == 1) {
+                            _actionModel.applyOneTime(
+                              start: _startDate,
+                              end: _endDate,
+                              groupId: _actionModel.addedKeyGroupId > 0
+                                  ? _actionModel.addedKeyGroupId
+                                  : null,
+                            );
+                          } else if (_validitySegment == 3) {
+                            final ds = _dailyStart == null
+                                ? 0
+                                : (_dailyStart!.hour * 60 +
+                                      _dailyStart!.minute);
+                            final de = _dailyEnd == null
+                                ? 0
+                                : (_dailyEnd!.hour * 60 + _dailyEnd!.minute);
+                            _actionModel.applyCycle(
+                              days: _selectedWeekDays,
+                              dailyStartMinutes: ds,
+                              dailyEndMinutes: de,
+                              start: _startDate,
+                              end: _endDate,
+                            );
+                          } else {
+                            final vn = (_vaildNumberChoice == -1)
+                                ? (parseI(_vaildNumberController.text) ??
+                                      _actionModel.vaildNumber)
+                                : _vaildNumberChoice;
+                            _actionModel.applyLimit(
+                              vaildNumberVal: vn,
+                              start: _startDate,
+                              end: _endDate,
+                            );
+                          }
+
+                          final actionModel = _actionModel;
 
                           final allowedAuth0 = {1, 4, 8};
                           final allowedAuth1 = {2, 4};

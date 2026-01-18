@@ -817,7 +817,7 @@ public class BleLockManager {
                     action.setAddedKeyGroupId(addedKeyGroupID);
                     action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
                     action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
-                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFFL));
+                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));
                     action.setWeek(parseInt(actionMap.get("week"), 0));
                     action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
                     action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 0));

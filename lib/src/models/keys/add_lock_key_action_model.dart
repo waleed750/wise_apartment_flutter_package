@@ -95,7 +95,7 @@ class AddLockKeyActionModel {
 
     // authorMode == 1 requires a 6-12 digit password (or card number)
     if (authorMode == 1) {
-      if (password == null || !RegExp(r'^\d{6,12}\$').hasMatch(password!)) {
+      if (password == null || !RegExp(r'^\d{6,12}$').hasMatch(password!)) {
         errors.add(
           'When authorMode==1, password (or card number) is required and must be 6-12 digits.',
         );
@@ -105,12 +105,15 @@ class AddLockKeyActionModel {
     // vaildMode==1 requires valid week and daily start/end times
     if (vaildMode == 1) {
       if (week == 0) errors.add('vaildMode==1 requires non-zero week bitmask.');
-      if (dayStartTimes < 0 || dayStartTimes > 1439)
+      if (dayStartTimes < 0 || dayStartTimes > 1439) {
         errors.add('dayStartTimes must be in 0..1439.');
-      if (dayEndTimes < 0 || dayEndTimes > 1439)
+      }
+      if (dayEndTimes < 0 || dayEndTimes > 1439) {
         errors.add('dayEndTimes must be in 0..1439.');
-      if (dayEndTimes <= dayStartTimes)
+      }
+      if (dayEndTimes <= dayStartTimes) {
         errors.add('dayEndTimes must be greater than dayStartTimes.');
+      }
     }
 
     // start/end time rules
@@ -120,25 +123,32 @@ class AddLockKeyActionModel {
     }
 
     // valid number range
-    if (vaildNumber < 0 || vaildNumber > 0xFF)
+    if (vaildNumber < 0 || vaildNumber > 0xFF) {
       errors.add('vaildNumber must be between 0 and 255.');
+    }
 
     // optional authMode-aware check for addedKeyType
     if (authMode != null) {
       final allowedAuth0 = {addedFingerprint, addedCard, addedRemote};
       final allowedAuth1 = {addedPassword, addedCard};
       if (authMode == 0) {
-        if (!allowedAuth0.contains(addedKeyType))
+        if (!allowedAuth0.contains(addedKeyType)) {
           errors.add('For authMode==0, addedKeyType must be one of: 1,4,8.');
+        }
       } else if (authMode == 1) {
-        if (!allowedAuth1.contains(addedKeyType))
+        if (!allowedAuth1.contains(addedKeyType)) {
           errors.add('For authMode==1, addedKeyType must be one of: 2,4.');
+        }
       }
     }
 
     // status/localRemoteMode basic sanity
     if (localRemoteMode < 0) errors.add('localRemoteMode must be >= 0.');
     if (status < 0) errors.add('status must be >= 0.');
+
+    // ensure group id is provided
+    if (addedKeyGroupId <= 0)
+      errors.add('addedKeyGroupId must be > 0 and is required.');
 
     return errors;
   }
@@ -163,6 +173,34 @@ class AddLockKeyActionModel {
   static const int addedCard = 4;
   static const int addedRemote = 8;
   static const int addedPassword = 2;
+  // vaildNumber sentinel values
+  static const int vaildNumberOneTime = 0x01;
+  static const int vaildNumberUnlimited = 0xFF;
+  static const int vaildNumberDisable = 0x00;
+
+  /// Force delivery mode to the fixed value expected by the protocol.
+  /// The protocol defines `localRemoteMode` default as `1` and it should
+  /// not be changed by callers; this helper enforces that.
+  void enforceLocalRemoteMode() {
+    localRemoteMode = 1;
+  }
+
+  /// Set author mode and apply sensible defaults for `addedKeyType` when not
+  /// already set. `mode` should be 0 or 1 per protocol.
+  void setAuthorMode(int mode) {
+    authorMode = mode;
+    if (addedKeyType == 0) {
+      addedKeyType = (mode == 1) ? addedPassword : addedFingerprint;
+    }
+  }
+
+  /// Set `addedKeyType` from a textual `choice`, using the current
+  /// `authorMode` (defaults to 0 if unset).
+  void setAddedKeyTypeFromChoice(String choice) {
+    final mode = authorMode ?? 0;
+    final t = computeAddedKeyType(authMode: mode, choice: choice);
+    if (t != 0) addedKeyType = t;
+  }
 
   /// Compute the proper `addedKeyType` value for a given `authMode` and a textual choice.
   /// `choice` can be one of: 'fingerprint','card','remote','password','cardNumber'.
@@ -174,12 +212,14 @@ class AddLockKeyActionModel {
     if (authMode == 0) {
       if (c == 'fingerprint') return addedFingerprint;
       if (c == 'card') return addedCard;
-      if (c == 'remote' || c == 'remotecontrol' || c == 'remote_control')
+      if (c == 'remote' || c == 'remotecontrol' || c == 'remote_control') {
         return addedRemote;
+      }
     } else if (authMode == 1) {
       if (c == 'password') return addedPassword;
-      if (c == 'card' || c == 'cardnumber' || c == 'card_number')
+      if (c == 'card' || c == 'cardnumber' || c == 'card_number') {
         return addedCard;
+      }
     }
     return 0;
   }
@@ -190,5 +230,129 @@ class AddLockKeyActionModel {
     int var2 = (authorMode == 1) ? 2 : 0;
     int var3 = (vaildMode == 1) ? 4 : 0;
     return var1 | var2 | var3;
+  }
+
+  /// Convert a set of weekday indexes (1..7) into a week bitmask used by the
+  /// lock: bit 0 -> day 1, bit 1 -> day 2, ... bit 6 -> day 7.
+  /// Example: days {1,3,5} -> bits (1<<0)|(1<<2)|(1<<4)
+  static int computeWeekMaskFromDays(Set<int> days) {
+    if (days.isEmpty) return 0;
+    var mask = 0;
+    for (final d in days) {
+      if (d >= 1 && d <= 7) mask |= (1 << (d - 1));
+    }
+    return mask;
+  }
+
+  /// Convert a [DateTime] to epoch seconds (UTC). Returns 0 for null.
+  static int dateTimeToEpochSeconds(DateTime? dt) {
+    if (dt == null) return 0;
+    return dt.toUtc().millisecondsSinceEpoch ~/ 1000;
+  }
+
+  /// Configure this model as a one-time key. Optional [start] and [end]
+  /// control the single-use time window. If [end] is omitted, it will be set
+  /// to [start] (if provided) or 0.
+  void applyOneTime({DateTime? start, DateTime? end, int? groupId}) {
+    vaildMode = 0;
+    validStartTime = dateTimeToEpochSeconds(start);
+    if (end != null) {
+      validEndTime = dateTimeToEpochSeconds(end);
+    } else {
+      validEndTime = validStartTime > 0 ? validStartTime : 0;
+    }
+    vaildNumber = 0x01;
+    week = 0;
+    dayStartTimes = 0;
+    dayEndTimes = 0;
+    if (groupId != null) addedKeyGroupId = groupId;
+  }
+
+  /// Configure this model as a permanent key (unlimited times, no time bounds).
+  void applyPermanent({int? groupId}) {
+    vaildMode = 0;
+    validStartTime = 0;
+    validEndTime = 0xFFFFFFFF;
+    vaildNumber = 0xFF;
+    week = 0;
+    dayStartTimes = 0;
+    dayEndTimes = 0;
+    if (groupId != null) addedKeyGroupId = groupId;
+  }
+
+  /// Configure this model as a repeating (cycle) key.
+  /// [days] are 1..7 (day-of-week). [dailyStartMinutes]/[dailyEndMinutes]
+  /// are minutes since midnight (0..1439). Optional [start]/[end] are the
+  /// overall active range. [vaildNumberVal] defaults to unlimited (0xFF).
+  void applyCycle({
+    required Set<int> days,
+    required int dailyStartMinutes,
+    required int dailyEndMinutes,
+    DateTime? start,
+    DateTime? end,
+    int vaildNumberVal = 0xFF,
+  }) {
+    vaildMode = 1;
+    week = computeWeekMaskFromDays(days);
+    dayStartTimes = dailyStartMinutes;
+    dayEndTimes = dailyEndMinutes;
+    validStartTime = dateTimeToEpochSeconds(start);
+    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0xFFFFFFFF;
+    vaildNumber = (vaildNumberVal < 0)
+        ? 0
+        : (vaildNumberVal > 0xFF ? 0xFF : vaildNumberVal);
+  }
+
+  /// Configure this model as a limited-use key with an explicit number of
+  /// usages. [vaildNumberVal] must be in 0..255. Optional [start]/[end]
+  /// define the active period.
+  void applyLimit({
+    required int vaildNumberVal,
+    DateTime? start,
+    DateTime? end,
+  }) {
+    vaildMode = 0;
+    validStartTime = dateTimeToEpochSeconds(start);
+    validEndTime = end != null ? dateTimeToEpochSeconds(end) : 0;
+    vaildNumber = (vaildNumberVal < 0)
+        ? 0
+        : (vaildNumberVal > 0xFF ? 0xFF : vaildNumberVal);
+    week = 0;
+    dayStartTimes = 0;
+    dayEndTimes = 0;
+  }
+}
+
+/// Result returned by the lock after an AddKey operation.
+class AddLockKeyResult {
+  final int authorNum;
+  final int authorTimes;
+  final int keyId;
+
+  AddLockKeyResult({this.authorNum = 0, this.authorTimes = 0, this.keyId = 0});
+
+  factory AddLockKeyResult.fromMap(Map<String, dynamic>? m) {
+    if (m == null) return AddLockKeyResult();
+    int parseInt(Object? v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
+    final authorNum = parseInt(
+      m['authorNum'] ?? m['AuthorNum'] ?? m['author_num'],
+    );
+    final authorTimes = parseInt(
+      m['AuthorTimes'] ?? m['authorTimes'] ?? m['author_times'],
+    );
+    final keyId = parseInt(
+      m['lockKeyId'] ?? m['lockKeyID'] ?? m['keyId'] ?? m['key_id'],
+    );
+
+    return AddLockKeyResult(
+      authorNum: authorNum,
+      authorTimes: authorTimes,
+      keyId: keyId,
+    );
   }
 }
