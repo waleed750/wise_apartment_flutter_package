@@ -190,6 +190,20 @@ dependencies {
 
 > **Important:** When building the plugin as an AAR, the Android Gradle Plugin will fail if the library module declares direct local `.aar` dependencies because the produced AAR would be missing those libraries' classes and resources. To avoid this issue the plugin compiles against vendor AARs using `compileOnly` (see `wise_apartment/android/build.gradle`). Consumer apps must include the vendor AARs (for example by copying them into the app module's `libs/` folder or publishing them to a Maven repository) so the final APK/AAB contains the native SDK.
 
+#### 4. Local Maven repository for examples
+
+If you are building the `example` app or consuming the plugin locally, ensure Gradle can find the prebuilt vendor AARs by adding the following entries to the `repositories` block used for dependency resolution (for example in your module `build.gradle.kts` or under `dependencyResolutionManagement { repositories { ... } }` in `settings.gradle.kts`):
+
+```kotlin
+repositories {
+  mavenLocal()
+  maven { url = uri("../../android/maven-repo") }
+  google()
+  mavenCentral()
+}
+```
+
+Reason: `mavenLocal()` allows Gradle to resolve artifacts from your local Maven cache (useful if vendor AARs were installed locally). The `maven { url = uri("../../android/maven-repo") }` entry points Gradle to the `android/maven-repo` folder bundled in this project, which contains the HXJ vendor AAR artifacts required by the plugin. Adding these ensures the build can resolve the native SDK dependencies without publishing them to a remote Maven repository.
 
 #### 4. Request Permissions at Runtime
 
