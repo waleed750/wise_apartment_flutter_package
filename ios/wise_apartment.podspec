@@ -5,25 +5,32 @@
 Pod::Spec.new do |s|
   s.name             = 'wise_apartment'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.summary          = 'iOS plugin for Smart Lock SDK integration'
   s.description      = <<-DESC
-A new Flutter plugin project.
+Flutter plugin providing BLE device scanning, pairing, and WiFi configuration for Smart Lock devices.
                        DESC
   s.homepage         = 'http://example.com'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
+  s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
-  s.platform = :ios, '13.0'
+  s.platform = :ios, '12.0'
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
-  s.swift_version = '5.0'
 
-  # If your plugin requires a privacy manifest, for example if it uses any
-  # required reason APIs, update the PrivacyInfo.xcprivacy file to describe your
-  # plugin's privacy impact, and then uncomment this line. For more information,
-  # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'wise_apartment_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  # TODO: Add your SDK framework dependency
+  # Option 1: If SDK is available via CocoaPods
+  # s.dependency 'HXJBLESDK', '~> 2.5.0'
+  
+  # Option 2: If SDK is a vendored framework (local)
+  # s.vendored_frameworks = 'Frameworks/HXJBLESDK.framework'
+  # s.xcconfig = { 'OTHER_LDFLAGS' => '-framework HXJBLESDK' }
+  
+  # Option 3: If SDK requires additional system frameworks
+  s.frameworks = 'CoreBluetooth', 'Foundation'
+  
+  s.swift_version = '5.0'
 end
