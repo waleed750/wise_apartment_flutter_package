@@ -46,20 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
+	<string>Used to add Bluetooth lock</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
-	<key>NSBluetoothWhileUsingUsageDescription</key>
-	<string>This app needs Bluetooth access to scan for and connect to smart lock devices for pairing and control.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app needs local network access to configure WiFi settings on smart lock devices.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location access is required for Bluetooth scanning on iOS. Your location is not tracked or stored.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Location access is required for Bluetooth scanning on iOS. Your location is not tracked or stored.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
+	<string>Used to add Bluetooth lock</string>
 </dict>
 </plist>
