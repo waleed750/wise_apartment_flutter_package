@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:wise_apartment/src/models/hxj_bluetooth_device_model.dart';
+
 import 'wise_apartment_platform_interface.dart';
 export 'src/wise_apartment_exception.dart';
 export 'src/models/export_hxj_models.dart';
@@ -106,8 +108,8 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.getDna(auth);
   }
 
-  Future<Map<String, dynamic>> addDevice(String mac, int chipType) {
-    return WiseApartmentPlatform.instance.addDevice(mac, chipType);
+  Future<Map<String, dynamic>> addDevice(HxjBluetoothDeviceModel device) {
+    return WiseApartmentPlatform.instance.addDevice(device);
   }
 
   /// Register WiFi configuration on the lock's RF module.

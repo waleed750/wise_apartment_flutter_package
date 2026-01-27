@@ -8,6 +8,12 @@ export 'sys_param_result.dart';
 export 'keys/lock_key_result.dart';
 export 'keys/add_lock_key_action_model.dart';
 
+// New unified models
+export 'lock_response.dart';
+export 'unlock_result.dart';
+export 'nb_iot_info.dart';
+export 'cat1_info.dart';
+
 // Records helpers
 export 'records/hx_record_factory.dart';
 export 'records/lock_record_extensions.dart';

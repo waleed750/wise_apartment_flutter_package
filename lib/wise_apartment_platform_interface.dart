@@ -1,4 +1,5 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:wise_apartment/src/models/hxj_bluetooth_device_model.dart';
 import 'wise_apartment_method_channel.dart';
 
 abstract class WiseApartmentPlatform extends PlatformInterface {
@@ -43,7 +44,7 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   Future<Map<String, dynamic>> getDna(Map<String, dynamic> auth);
 
   // New Methods from AddSecondFragment
-  Future<Map<String, dynamic>> addDevice(String mac, int chipType);
+  Future<Map<String, dynamic>> addDevice(HxjBluetoothDeviceModel device);
 
   /// Register/configure WiFi on the lock's RF module.
   /// `wifiJson` is a JSON string containing the configuration payload.

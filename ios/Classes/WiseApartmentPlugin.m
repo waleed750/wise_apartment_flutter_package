@@ -603,12 +603,8 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
         return;
     }
     
-    NSLog(@"[WiseApartmentPlugin] Getting system parameters");
-    // TODO: Call SDK getSysParam
-    // Example: [[HXLockManager shared] getSysParamWithAuth:auth completion:^(NSDictionary *params) { ... }];
-    
-    NSLog(@"[WiseApartmentPlugin] System parameters retrieved");
-    result(@{@"code": @0, @"body": @{}});
+    NSLog(@"[WiseApartmentPlugin] Getting system parameters via BleLockManager");
+    [self.lockManager getSysParam:auth result:result];
 }
 
 // SDK State

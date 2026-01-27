@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'wise_apartment.dart';
 import 'wise_apartment_platform_interface.dart';
 import 'src/wise_apartment_exception.dart';
 import 'src/wise_status_store.dart';
@@ -202,12 +205,22 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> addDevice(String mac, int chipType) async {
-    final result = await methodChannel.invokeMapMethod<String, dynamic>(
-      'addDevice',
-      {'mac': mac, 'chipType': chipType},
-    );
-    return result ?? {};
+  Future<Map<String, dynamic>> addDevice(HxjBluetoothDeviceModel device) async {
+    late final Map<String, dynamic>? result;
+    if (Platform.isAndroid) {
+      result = await methodChannel.invokeMapMethod<String, dynamic>(
+        'addDevice',
+        {'mac': device.getMac(), 'chipType': device.chipType},
+      );
+    } else {
+      // iOS have different approach
+      result = await methodChannel.invokeMapMethod<String, dynamic>(
+        'addDevice',
+        device.toMap(),
+      );
+    }
+
+    return result ?? <String, dynamic>{};
   }
 
   @override

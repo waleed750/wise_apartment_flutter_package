@@ -157,7 +157,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
         );
       }
       final cipType = device.chipType ?? 0;
-      final res = await _plugin.addDevice(mac, cipType);
+      final res = await _plugin.addDevice(device);
       // Ensure we treat the platform response as a Map<String,dynamic>
       final Map<String, dynamic> resMap = Map<String, dynamic>.from(res);
       // Attempt to capture a numeric code from the top-level response or nested responses
@@ -197,6 +197,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
         }
         if (dna is Map) {
           toSave = Map<String, dynamic>.from(dna);
+          toSave['name'] = device.name ?? '';
         } else {
           toSave = device.toMap();
         }

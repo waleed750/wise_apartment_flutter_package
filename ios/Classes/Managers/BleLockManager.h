@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)deleteLock:(NSDictionary *)args result:(FlutterResult)result;
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result;
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result;
+- (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result;
 
 @end
 

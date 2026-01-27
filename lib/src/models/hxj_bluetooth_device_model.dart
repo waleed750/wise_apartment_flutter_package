@@ -1,3 +1,5 @@
+import 'dart:io';
+
 class HxjBluetoothDeviceModel {
   final String? mac;
   final String? address;
@@ -12,6 +14,7 @@ class HxjBluetoothDeviceModel {
   final bool? isSupported;
   final bool? settedMac;
   final bool? isSupportReSetMac;
+  final List<String>? serviceUUIDs;
 
   const HxjBluetoothDeviceModel({
     this.mac,
@@ -27,9 +30,31 @@ class HxjBluetoothDeviceModel {
     this.isSupported,
     this.settedMac,
     this.isSupportReSetMac,
+    this.serviceUUIDs,
   });
-
-  factory HxjBluetoothDeviceModel.fromMap(Map<dynamic, dynamic>? map) {
+  factory HxjBluetoothDeviceModel.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const HxjBluetoothDeviceModel();
+    if (Platform.isIOS) {
+      return HxjBluetoothDeviceModel._iosFromMap(map);
+    }
+    return HxjBluetoothDeviceModel._fromAndroidMap(map);
+  }
+  factory HxjBluetoothDeviceModel._iosFromMap(Map<String, dynamic> map) {
+    return HxjBluetoothDeviceModel(
+      mac: (map['mac'] ?? '') as String,
+      isPaired: (map['isPairedFlag'] ?? false) as bool,
+      isDiscoverable: (map['discoverableFlag'] ?? false) as bool,
+      name: (map['name'] ?? '') as String,
+      serviceUUIDs: ((map['serviceUUIDs'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      rssi: _numToInt(map['RSSI'] ?? map['rssi']),
+      chipType: _numToInt(map['chipType']),
+      isNewProtocol: (map['modernProtocol'] ?? false) as bool,
+      lockType: _numToInt(map['lockType']),
+    );
+  }
+  factory HxjBluetoothDeviceModel._fromAndroidMap(Map<dynamic, dynamic>? map) {
     if (map == null) return const HxjBluetoothDeviceModel();
     return HxjBluetoothDeviceModel(
       mac: map['mac'] as String?,
@@ -54,7 +79,31 @@ class HxjBluetoothDeviceModel {
     );
   }
 
+  /// ✅ ONLY ONE toMap (platform-based)
   Map<String, dynamic> toMap() {
+    if (Platform.isIOS) {
+      return _toIosMap();
+    }
+
+    // iOS map = android map + iOS keys (NO deletes, NO overwrites existing)
+    return _toAndroidMap();
+  }
+
+  Map<String, dynamic> _toIosMap() {
+    return {
+      'mac': mac,
+      'isPairedFlag': isPaired,
+      'discoverableFlag': isDiscoverable,
+      'name': name,
+      'serviceUUIDs': serviceUUIDs,
+      'RSSI': rssi, // keep as RSSI to match iOS model property name
+      'chipType': chipType,
+      'modernProtocol': isNewProtocol,
+      'lockType': lockType,
+    };
+  }
+
+  Map<String, dynamic> _toAndroidMap() {
     return {
       'mac': mac,
       'address': address,
@@ -117,5 +166,16 @@ class HxjBluetoothDeviceModel {
     if (address == null || address!.isEmpty) return null;
     final normalized = address!.replaceAll(':', '').toLowerCase();
     return normalized.isEmpty ? null : normalized;
+  }
+
+  // =========================
+  // Helpers
+  // =========================
+  static int _numToInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString()) ?? 0;
   }
 }

@@ -64,7 +64,7 @@ class MockWiseApartmentPlatform
       Future.value({});
 
   @override
-  Future<Map<String, dynamic>> addDevice(String mac, int chipType) {
+  Future<Map<String, dynamic>> addDevice(HxjBluetoothDeviceModel device) {
     return Future.value({});
   }
 
