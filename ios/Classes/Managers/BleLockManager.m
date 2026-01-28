@@ -14,6 +14,7 @@
 @interface BleLockManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
 @property (nonatomic, strong) BleScanManager *scanManager;
+@property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
 @end
 
 @implementation BleLockManager
@@ -343,7 +344,10 @@
         
         // Set fields from args (match iOS Flutter model keys from _toIosMap)
         if (args[@"name"]) advertisementModel.name = args[@"name"];
-        if (args[@"RSSI"]) advertisementModel.rssi = [args[@"RSSI"] intValue];
+        if (args[@"RSSI"]){
+            NSMutableDictionary *m = [NSMutableDictionary dictionary];
+            m[@"RSSI"] = @([args[@"RSSI"] intValue]);   // or just m[@"RSSI"] = @(rssiInt);
+        }
         if (args[@"chipType"]) advertisementModel.chipType = [args[@"chipType"] intValue];
         if (args[@"lockType"]) advertisementModel.lockType = [args[@"lockType"] intValue];
         if (args[@"isPairedFlag"]) advertisementModel.isPairedFlag = [args[@"isPairedFlag"] boolValue];
@@ -362,7 +366,7 @@
 
     @try {
         HXAddBluetoothLockHelper *helper = [[HXAddBluetoothLockHelper alloc] init];
-        [helper startAddDeviceWithAdvertisementModel:advertisementModel 
+        [helper startAddDeviceWithAdvertisementModel:advertisementModel
                                      completionBlock:^(KSHStatusCode statusCode,
                                                       NSString *reason,
                                                       HXBLEDevice *device,
@@ -374,7 +378,8 @@
                     dnaMap[@"authCode"] = device.adminAuthCode ?: @"";
                     dnaMap[@"dnaKey"] = device.aesKey ?: @"";
                     dnaMap[@"protocolVer"] = @(device.bleProtocolVersion);
-                    dnaMap[@"deviceType"] = @(device.lockType) ?: @"";
+                    // Ensure deviceType is always an NSNumber (avoid mixing NSNumber and NSString with ?:)
+                    dnaMap[@"deviceType"] = @(device.lockType);
                     dnaMap[@"hardwareVer"] = device.hardwareVersion ?: @"";
                     dnaMap[@"softwareVer"] = device.rfMoudleSoftwareVer ?: @"";
                     dnaMap[@"rFModuleType"] = @(device.rfModuleType);
