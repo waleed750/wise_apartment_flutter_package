@@ -302,6 +302,7 @@
 
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    NSLog(@"[BleLockManager] addDevice called with args: %@", args);
 
     // Validate args
     if (![args isKindOfClass:[NSDictionary class]] || args.count == 0) {
