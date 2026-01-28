@@ -288,28 +288,28 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleDeleteLock:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleDeleteLock called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.lockManager deleteLock:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.lockManager deleteLock:params result:result];
 }
 
 - (void)handleGetDna:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleGetDna called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.lockManager getDna:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.lockManager getDna:params result:result];
 }
 
 // Lock Operations
 
 - (void)handleOpenLock:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleOpenLock called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.lockManager openLock:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.lockManager openLock:params result:result];
 }
 
 - (void)handleCloseLock:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleCloseLock called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.lockManager closeLock:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.lockManager closeLock:params result:result];
 }
 
 // WiFi Configuration
@@ -324,13 +324,26 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
     }
     
     NSString *wifiJson = params[@"wifi"];
-    NSDictionary *dna = params[@"dna"];
-    NSString *mac = params[@"mac"] ?: dna[@"mac"];
+    NSString *mac = params[@"mac"];
     
     if (!wifiJson) {
         NSLog(@"[WiseApartmentPlugin] Missing wifi parameter");
         result(@{@"success": @NO, @"message": @"wifi parameter is required"});
         return;
+    }
+
+    // Attempt to infer mac from wifiJson if caller didn't provide it.
+    if ((!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) && [wifiJson isKindOfClass:[NSString class]]) {
+        NSData *data = [(NSString *)wifiJson dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if ([obj isKindOfClass:[NSDictionary class]]) {
+                id m = ((NSDictionary *)obj)[@"lockMac"] ?: ((NSDictionary *)obj)[@"mac"];
+                if ([m isKindOfClass:[NSString class]]) {
+                    mac = (NSString *)m;
+                }
+            }
+        }
     }
     
     if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
@@ -338,17 +351,55 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
         return;
     }
 
-    if (![dna isKindOfClass:[NSDictionary class]] || dna.count == 0) {
-        result(@{ @"success": @NO, @"code": @-1, @"message": @"dna is required" });
+    // Prepare: set device AES key before calling SDK methods (prevents 228 error)
+    if (![self prepare:params]) {
+        result(@{ @"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
         return;
     }
 
-    if (![self wa_configureDeviceForAuth:dna]) {
-        result(@{ @"success": @NO, @"code": @-1, @"message": @"Missing auth fields for WiFi config" });
-        return;
+    // Build SHBLENetworkConfigParam.
+    // Supports:
+    // 1) JSON string with SHBLENetworkConfigParam-like keys
+    // 2) legacy rfCode string format (fallback)
+    SHBLENetworkConfigParam *param = nil;
+    if ([wifiJson isKindOfClass:[NSString class]]) {
+        NSData *data = [((NSString *)wifiJson) dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            NSError *jsonErr = nil;
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
+            if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
+                NSDictionary *m = (NSDictionary *)obj;
+                param = [[SHBLENetworkConfigParam alloc] init];
+                param.lockMac = [mac lowercaseString];
+                id ct = m[@"configType"];
+                if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
+                id ut = m[@"updateTokenId"];
+                if ([ut respondsToSelector:@selector(boolValue)]) param.updateTokenId = [ut boolValue];
+                id token = m[@"tokenId"];
+                if ([token isKindOfClass:[NSString class]]) param.tokenId = (NSString *)token;
+                id ssid = m[@"ssid"];
+                if ([ssid isKindOfClass:[NSString class]]) param.ssid = (NSString *)ssid;
+                id pwd = m[@"password"];
+                if ([pwd isKindOfClass:[NSString class]]) param.password = (NSString *)pwd;
+                id host = m[@"host"];
+                if ([host isKindOfClass:[NSString class]]) param.host = (NSString *)host;
+                id port = m[@"port"];
+                if ([port respondsToSelector:@selector(intValue)]) param.port = [port intValue];
+                id ag = m[@"autoGetIP"];
+                if ([ag respondsToSelector:@selector(boolValue)]) param.autoGetIP = [ag boolValue];
+                id ip = m[@"ip"];
+                if ([ip isKindOfClass:[NSString class]]) param.ip = (NSString *)ip;
+                id sub = m[@"subnetwork"];
+                if ([sub isKindOfClass:[NSString class]]) param.subnetwork = (NSString *)sub;
+                id router = m[@"routerIP"];
+                if ([router isKindOfClass:[NSString class]]) param.routerIP = (NSString *)router;
+            }
+        }
     }
 
-    SHBLENetworkConfigParam *param = [self wa_parseRfCode:wifiJson lockMac:[mac lowercaseString]];
+    if (!param) {
+        param = [self wa_parseRfCode:wifiJson lockMac:[mac lowercaseString]];
+    }
     if (!param) {
         result(@{ @"success": @NO, @"code": @-1, @"message": @"Invalid wifi rfCode format" });
         return;
@@ -374,18 +425,16 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleConnectBle:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleConnectBle called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : nil;
-    if (!auth || !auth[@"mac"]) {
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params || !params[@"mac"]) {
         NSLog(@"[WiseApartmentPlugin] Invalid parameters for connectBle: missing mac");
         result(@NO);
         return;
     }
     
-    NSString *mac = [auth[@"mac"] lowercaseString];
-    if (![self wa_configureDeviceForAuth:auth]) {
-        result(@NO);
-        return;
-    }
+    NSString *mac = [params[@"mac"] lowercaseString];
+    // Prepare: configure device auth before connecting
+    [self prepare:params];
 
     [HXBluetoothLockHelper connectPeripheralWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -420,10 +469,17 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
     NSString *mac = auth[@"mac"];
     if (![mac isKindOfClass:[NSString class]] || mac.length == 0) return NO;
 
-    NSString *authCode = auth[@"authCode"];
-    NSString *dnaKey = auth[@"dnaKey"] ?: auth[@"aesKey"];
-    NSNumber *keyGroupId = auth[@"keyGroupId"];
-    NSNumber *bleProtocolVer = auth[@"bleProtocolVer"] ?: auth[@"bleProtocolVersion"] ?: auth[@"protocolVer"];
+    // Resolve missing auth material from cache populated by addDevice.
+    NSDictionary *resolved = auth;
+    NSDictionary *cached = [self.bleClient authForMac:mac];
+    if ([cached isKindOfClass:[NSDictionary class]]) {
+        resolved = cached;
+    }
+
+    NSString *authCode = resolved[@"authCode"];
+    NSString *dnaKey = resolved[@"dnaKey"] ?: resolved[@"aesKey"];
+    NSNumber *keyGroupId = resolved[@"keyGroupId"];
+    NSNumber *bleProtocolVer = resolved[@"bleProtocolVer"] ?: resolved[@"bleProtocolVersion"] ?: resolved[@"protocolVer"];
 
     if (![authCode isKindOfClass:[NSString class]] || authCode.length == 0) return NO;
     if (![dnaKey isKindOfClass:[NSString class]] || dnaKey.length == 0) return NO;
@@ -496,14 +552,14 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleGetNBIoTInfo:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleGetNBIoTInfo called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.deviceInfoManager getNBIoTInfo:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.deviceInfoManager getNBIoTInfo:params result:result];
 }
 
 - (void)handleGetCat1Info:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleGetCat1Info called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : @{};
-    [self.deviceInfoManager getCat1Info:auth result:result];
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
+    [self.deviceInfoManager getCat1Info:params result:result];
 }
 
 // Lock Configuration
@@ -562,9 +618,9 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleSyncLockKey:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleSyncLockKey called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : nil;
-    if (!auth) {
-        NSLog(@"[WiseApartmentPlugin] Invalid auth parameters for syncLockKey");
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters for syncLockKey");
         result(@{@"success": @NO});
         return;
     }
@@ -579,9 +635,9 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleSyncLockTime:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleSyncLockTime called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : nil;
-    if (!auth) {
-        NSLog(@"[WiseApartmentPlugin] Invalid auth parameters for syncLockTime");
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters for syncLockTime");
         result(@NO);
         return;
     }
@@ -596,15 +652,9 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
 
 - (void)handleGetSysParam:(id)args result:(FlutterResult)result {
     NSLog(@"[WiseApartmentPlugin] handleGetSysParam called with args: %@", args);
-    NSDictionary *auth = [args isKindOfClass:[NSDictionary class]] ? args : nil;
-    if (!auth) {
-        NSLog(@"[WiseApartmentPlugin] Invalid auth parameters for getSysParam");
-        result(@{});
-        return;
-    }
-    
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : @{};
     NSLog(@"[WiseApartmentPlugin] Getting system parameters via BleLockManager");
-    [self.lockManager getSysParam:auth result:result];
+    [self.lockManager getSysParam:params result:result];
 }
 
 // SDK State
@@ -618,6 +668,17 @@ static NSString *const kEventChannelName = @"wise_apartment/events";
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     result(@YES);
+}
+
+#pragma mark - Prepare Helper
+
+/**
+ * Prepare method: ensures device auth is configured before calling SDK methods.
+ * Extracts aesKey, authCode, keyGroupId, bleProtocolVersion from args and calls
+ * HXBluetoothLockHelper setDeviceAESKey. Returns YES if successful.
+ */
+- (BOOL)prepare:(NSDictionary *)args {
+    return [self wa_configureDeviceForAuth:args];
 }
 
 @end

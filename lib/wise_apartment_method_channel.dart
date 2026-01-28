@@ -4,13 +4,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'wise_apartment.dart';
 import 'wise_apartment_platform_interface.dart';
-import 'src/wise_apartment_exception.dart';
 import 'src/wise_status_store.dart';
-import 'src/models/keys/add_lock_key_action_model.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
   final methodChannel = const MethodChannel('wise_apartment/methods');
+
+  Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
+    final dynamic mac = auth['mac'];
+    if (mac is String && mac.isNotEmpty) {
+      return <String, dynamic>{'mac': mac};
+    }
+    // Keep a minimal but predictable payload; native will error if missing.
+    return <String, dynamic>{};
+  }
 
   @override
   Future<String?> getPlatformVersion() async {
@@ -61,7 +68,8 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<bool> openLock(Map<String, dynamic> auth) async {
-    return _invokeBool('openLock', auth);
+    final args = Map<String, dynamic>.from(auth);
+    return _invokeBool('openLock', args);
   }
 
   @override
@@ -76,23 +84,26 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<bool> closeLock(Map<String, dynamic> auth) async {
-    return _invokeBool('closeLock', auth);
+    final args = Map<String, dynamic>.from(auth);
+    return _invokeBool('closeLock', args);
   }
 
   @override
   Future<Map<String, dynamic>> getNBIoTInfo(Map<String, dynamic> auth) async {
+    final args = Map<String, dynamic>.from(auth);
     final result = await methodChannel.invokeMapMethod<String, dynamic>(
       'getNBIoTInfo',
-      auth,
+      args,
     );
     return result ?? {};
   }
 
   @override
   Future<Map<String, dynamic>> getCat1Info(Map<String, dynamic> auth) async {
+    final args = Map<String, dynamic>.from(auth);
     final result = await methodChannel.invokeMapMethod<String, dynamic>(
       'getCat1Info',
-      auth,
+      args,
     );
     return result ?? {};
   }
@@ -122,8 +133,9 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       int mfInt = 0;
       if (mf is int) {
         mfInt = mf;
-      } else if (mf is String)
+      } else if (mf is String) {
         mfInt = int.tryParse(mf) ?? 0;
+      }
       effectiveLogVersion = ((mfInt & 0x4) != 0) ? 2 : 1;
     }
     args['logVersion'] = effectiveLogVersion;
@@ -154,7 +166,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     // its third bit to determine the lock record generation: bit 3 (0x4)
     // set => generation 2, otherwise generation 1. If `menuFeature` is
     // absent, fall back to the provided `logVersion` argument.
-    late final int effectiveLogVersion;
+    int effectiveLogVersion = 1;
 
     if (args.containsKey('menuFeature')) {
       final dynamic mf = args['menuFeature'];
@@ -192,14 +204,16 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<bool> deleteLock(Map<String, dynamic> auth) async {
-    return _invokeBool('deleteLock', auth);
+    final args = Map<String, dynamic>.from(auth);
+    return _invokeBool('deleteLock', args);
   }
 
   @override
   Future<Map<String, dynamic>> getDna(Map<String, dynamic> auth) async {
+    final args = Map<String, dynamic>.from(auth);
     final result = await methodChannel.invokeMapMethod<String, dynamic>(
       'getDna',
-      auth,
+      args,
     );
     return result ?? {};
   }
@@ -229,11 +243,17 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     Map<String, dynamic> dna,
   ) async {
     try {
+      final args = Platform.isAndroid
+          ? <String, dynamic>{'wifi': wifiJson, 'dna': dna}
+          : <String, dynamic>{
+              // iOS does not require auth material; mac is enough.
+              'wifi': wifiJson,
+              'mac': dna['mac'] ?? dna['lockMac'],
+              // Keep dna for backward compatibility (native may ignore it).
+              'dna': dna,
+            };
       final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('regWifi', {
-            'wifi': wifiJson,
-            'dna': dna,
-          });
+          .invokeMapMethod<String, dynamic>('regWifi', args);
       if (result != null) return result;
     } catch (e) {
       // fallthrough to simulated response
@@ -254,7 +274,8 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<bool> connectBle(Map<String, dynamic> auth) async {
-    return _invokeBool('connectBle', auth);
+    final args = Map<String, dynamic>.from(auth);
+    return _invokeBool('connectBle', args);
   }
 
   @override
@@ -309,8 +330,9 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @override
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) async {
     try {
+      final args = Map<String, dynamic>.from(auth);
       final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('syncLockKey', auth);
+          .invokeMapMethod<String, dynamic>('syncLockKey', args);
       return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);
@@ -319,14 +341,16 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<bool> syncLockTime(Map<String, dynamic> auth) async {
-    return _invokeBool('syncLockTime', auth);
+    final args = Map<String, dynamic>.from(auth);
+    return _invokeBool('syncLockTime', args);
   }
 
   @override
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) async {
     try {
+      final args = Map<String, dynamic>.from(auth);
       final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('getSysParam', auth);
+          .invokeMapMethod<String, dynamic>('getSysParam', args);
       return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);

@@ -70,15 +70,34 @@
         return;
     }
 
-    // Configure lock auth if present (same keys as Android auth map)
+    // Configure lock auth if present, otherwise attempt to use cached auth.
+    NSDictionary *resolved = args;
     NSString *aesKey = [PluginUtils stringArg:args key:@"dnaKey"];
+    if (aesKey.length == 0) {
+        aesKey = [PluginUtils stringArg:args key:@"aesKey"];
+    }
     NSString *authCode = [PluginUtils stringArg:args key:@"authCode"];
-    int keyGroupId = [PluginUtils intFromArgs:args key:@"keyGroupId" defaultValue:900];
+    if (aesKey.length == 0 || authCode.length == 0) {
+        NSDictionary *cached = [self.bleClient authForMac:mac];
+        if ([cached isKindOfClass:[NSDictionary class]]) {
+            resolved = cached;
+            if (aesKey.length == 0) {
+                NSString *c = [PluginUtils stringArg:cached key:@"dnaKey"];
+                if (c.length == 0) c = [PluginUtils stringArg:cached key:@"aesKey"];
+                aesKey = c ?: @"";
+            }
+            if (authCode.length == 0) {
+                NSString *c = [PluginUtils stringArg:cached key:@"authCode"];
+                authCode = c ?: @"";
+            }
+        }
+    }
+    int keyGroupId = [PluginUtils intFromArgs:resolved key:@"keyGroupId" defaultValue:900];
     int bleProtocolVer = 0;
-    if (args[@"bleProtocolVer"] != nil) {
-        bleProtocolVer = [PluginUtils intFromArgs:args key:@"bleProtocolVer" defaultValue:0];
+    if (resolved[@"bleProtocolVer"] != nil) {
+        bleProtocolVer = [PluginUtils intFromArgs:resolved key:@"bleProtocolVer" defaultValue:0];
     } else {
-        bleProtocolVer = [PluginUtils intFromArgs:args key:@"protocolVer" defaultValue:0];
+        bleProtocolVer = [PluginUtils intFromArgs:resolved key:@"protocolVer" defaultValue:0];
     }
     if (aesKey.length > 0 && authCode.length > 0) {
         [HXBluetoothLockHelper setDeviceAESKey:aesKey authCode:authCode keyGroupId:keyGroupId bleProtocolVersion:bleProtocolVer lockMac:mac];

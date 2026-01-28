@@ -39,9 +39,21 @@
     return YES;
 }
 
+/**
+ * Prepare method: must be called before any HXBluetoothLockHelper operation.
+ * Extracts device auth info from args and calls setDeviceAESKey.
+ * Returns YES on success, NO if required auth data is missing.
+ */
+- (BOOL)prepare:(NSDictionary *)args error:(FlutterError * __autoreleasing *)errorOut {
+    return [self configureLockFromArgs:args error:errorOut];
+}
+
 - (BOOL)configureLockFromArgs:(NSDictionary *)args error:(FlutterError * __autoreleasing *)errorOut {
     NSString *mac = [PluginUtils lockMacFromArgs:args];
     NSString *aesKey = [PluginUtils stringArg:args key:@"dnaKey"];
+    if (aesKey.length == 0) {
+        aesKey = [PluginUtils stringArg:args key:@"aesKey"];
+    }
     NSString *authCode = [PluginUtils stringArg:args key:@"authCode"];
     int keyGroupId = [PluginUtils intFromArgs:args key:@"keyGroupId" defaultValue:900];
 
@@ -58,13 +70,40 @@
         return NO;
     }
 
+    // If auth fields are not present, try to resolve them from the cache.
+    if (aesKey.length == 0 || authCode.length == 0) {
+        NSDictionary *cached = [self.bleClient authForMac:mac];
+        if ([cached isKindOfClass:[NSDictionary class]]) {
+            if (aesKey.length == 0) {
+                NSString *c = [PluginUtils stringArg:cached key:@"dnaKey"];
+                if (c.length == 0) c = [PluginUtils stringArg:cached key:@"aesKey"];
+                aesKey = c ?: @"";
+            }
+            if (authCode.length == 0) {
+                NSString *c = [PluginUtils stringArg:cached key:@"authCode"];
+                authCode = c ?: @"";
+            }
+            // Prefer cached protocolVer/keyGroupId when caller didn't supply them.
+            if (keyGroupId == 900 && cached[@"keyGroupId"] != nil) {
+                keyGroupId = [PluginUtils intFromArgs:cached key:@"keyGroupId" defaultValue:keyGroupId];
+            }
+            if (bleProtocolVer == 0) {
+                if (cached[@"bleProtocolVer"] != nil) {
+                    bleProtocolVer = [PluginUtils intFromArgs:cached key:@"bleProtocolVer" defaultValue:bleProtocolVer];
+                } else {
+                    bleProtocolVer = [PluginUtils intFromArgs:cached key:@"protocolVer" defaultValue:bleProtocolVer];
+                }
+            }
+        }
+    }
+
     if (aesKey.length == 0) {
-        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"dnaKey is required" details:nil];
+        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"dnaKey is required (call addDevice first on iOS, or provide dnaKey/authCode)" details:nil];
         return NO;
     }
 
     if (authCode.length == 0) {
-        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"authCode is required" details:nil];
+        if (errorOut) *errorOut = [FlutterError errorWithCode:@"ERROR" message:@"authCode is required (call addDevice first on iOS, or provide dnaKey/authCode)" details:nil];
         return NO;
     }
 
@@ -337,6 +376,10 @@
         [HXBluetoothLockHelper deleteDeviceWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
             @try {
                 [self.bleClient disConnectBle:nil];
+
+                if (statusCode == KSHStatusCode_Success) {
+                    [self.bleClient clearAuthForMac:mac];
+                }
                 
                 NSDictionary *response = [self responseMapWithCode:statusCode
                                                             message:reason
@@ -470,6 +513,9 @@
                     dnaMap[@"rFModuleMac"] = device.rfModuleMac ?: @"";
                     dnaMap[@"deviceDnaInfoStr"] = device.deviceDnaInfoStr ?: @"";
                     dnaMap[@"keyGroupId"] = @900;
+
+                    // Cache auth material so subsequent iOS calls can be mac-only.
+                    [self.bleClient setAuth:dnaMap forMac:(device.lockMac ?: mac)];
                     
                     // Build sysParam map
                     NSMutableDictionary *sysParamMap = [NSMutableDictionary dictionary];
