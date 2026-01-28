@@ -240,9 +240,6 @@
         return;
     }
 
-    // You started using SHBLEHotelLockSystemParam, but the actual HXJ iOS API call
-    // for setting key expiration alarm time is not provided in the snippet.
-    // Keep this method compiling safely until you confirm the correct SDK method.
     (void)[PluginUtils intFromArgs:args key:@"time" defaultValue:0];
     (void)[PluginUtils lockMacFromArgs:args];
 
@@ -334,20 +331,21 @@
         return;
     }
 
-    // Try to get advertisement model from args first, then fall back to scan manager
     SHAdvertisementModel *advertisementModel = nil;
-    
-    // Check if device data is provided directly in args (from HxjBluetoothDeviceModel.toMap())
+
     if (args[@"name"] || args[@"RSSI"] || args[@"chipType"] || args[@"lockType"]) {
         advertisementModel = [[SHAdvertisementModel alloc] init];
         advertisementModel.mac = mac;
-        
-        // Set fields from args (match iOS Flutter model keys from _toIosMap)
+
         if (args[@"name"]) advertisementModel.name = args[@"name"];
-        if (args[@"RSSI"]){
-            NSMutableDictionary *m = [NSMutableDictionary dictionary];
-            m[@"RSSI"] = @([args[@"RSSI"] intValue]);   // or just m[@"RSSI"] = @(rssiInt);
+
+        // ✅ FIX #1: RSSI must be assigned to advertisementModel.RSSI (NSNumber*)
+        if (args[@"RSSI"] && args[@"RSSI"] != (id)[NSNull null]) {
+            advertisementModel.RSSI = [args[@"RSSI"] isKindOfClass:[NSNumber class]]
+                ? (NSNumber *)args[@"RSSI"]
+                : @([args[@"RSSI"] intValue]);
         }
+
         if (args[@"chipType"]) advertisementModel.chipType = [args[@"chipType"] intValue];
         if (args[@"lockType"]) advertisementModel.lockType = [args[@"lockType"] intValue];
         if (args[@"isPairedFlag"]) advertisementModel.isPairedFlag = [args[@"isPairedFlag"] boolValue];
@@ -355,22 +353,25 @@
         if (args[@"modernProtocol"]) advertisementModel.modernProtocol = [args[@"modernProtocol"] boolValue];
         if (args[@"serviceUUIDs"]) advertisementModel.serviceUUIDs = args[@"serviceUUIDs"];
     } else {
-        // Fall back to scan manager if no device data in args
         advertisementModel = [self.scanManager advertisementForMac:mac];
     }
-    
+
     if (!advertisementModel) {
         [one error:@"FAILED" message:@"Device not found. Provide advertisementData or scan first." details:nil];
         return;
     }
 
     @try {
-        HXAddBluetoothLockHelper *helper = [[HXAddBluetoothLockHelper alloc] init];
-        [helper startAddDeviceWithAdvertisementModel:advertisementModel
-                                     completionBlock:^(KSHStatusCode statusCode,
-                                                      NSString *reason,
-                                                      HXBLEDevice *device,
-                                                      HXBLEDeviceStatus *deviceStatus) {
+        // ✅ FIX #2: use self.addHelper (strong property) like the demo
+        if (!self.addHelper) {
+            self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+        }
+
+        [self.addHelper startAddDeviceWithAdvertisementModel:advertisementModel
+                                            completionBlock:^(KSHStatusCode statusCode,
+                                                             NSString *reason,
+                                                             HXBLEDevice *device,
+                                                             HXBLEDeviceStatus *deviceStatus) {
             @try {
                 if (statusCode == KSHStatusCode_Success && device != nil && deviceStatus != nil) {
                     NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
@@ -378,13 +379,13 @@
                     dnaMap[@"authCode"] = device.adminAuthCode ?: @"";
                     dnaMap[@"dnaKey"] = device.aesKey ?: @"";
                     dnaMap[@"protocolVer"] = @(device.bleProtocolVersion);
-                    // Ensure deviceType is always an NSNumber (avoid mixing NSNumber and NSString with ?:)
+
                     dnaMap[@"deviceType"] = @(device.lockType);
                     dnaMap[@"hardwareVer"] = device.hardwareVersion ?: @"";
                     dnaMap[@"softwareVer"] = device.rfMoudleSoftwareVer ?: @"";
                     dnaMap[@"rFModuleType"] = @(device.rfModuleType);
                     dnaMap[@"rFModuleMac"] = device.rfModuleMac ?: @"";
-//                    dnaMap[@"menuFeature"] = deviceStatus. ?: @"0";
+
                     dnaMap[@"deviceDnaInfoStr"] = device.deviceDnaInfoStr ?: @"";
                     dnaMap[@"keyGroupId"] = @900;
 
