@@ -372,14 +372,14 @@
                     NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
                     dnaMap[@"mac"] = device.lockMac ?: mac;
                     dnaMap[@"authCode"] = device.adminAuthCode ?: @"";
-                    dnaMap[@"dnaKey"] = device.adminAes128Key ?: @"";
+                    dnaMap[@"dnaKey"] = device.aesKey ?: @"";
                     dnaMap[@"protocolVer"] = @(device.bleProtocolVersion);
-                    dnaMap[@"deviceType"] = @(device.deviceType);
-                    dnaMap[@"hardwareVer"] = device.hardWareVer ?: @"";
-                    dnaMap[@"softwareVer"] = device.softWareVer ?: @"";
-                    dnaMap[@"rFModuleType"] = @(device.rFMoudleType);
-                    dnaMap[@"rFModuleMac"] = device.rFModuleMac ?: @"";
-                    dnaMap[@"menuFeature"] = deviceStatus.menuFeature ?: @"0";
+                    dnaMap[@"deviceType"] = @(device.lockType) ?: @"";
+                    dnaMap[@"hardwareVer"] = device.hardwareVersion ?: @"";
+                    dnaMap[@"softwareVer"] = device.rfMoudleSoftwareVer ?: @"";
+                    dnaMap[@"rFModuleType"] = @(device.rfModuleType);
+                    dnaMap[@"rFModuleMac"] = device.rfModuleMac ?: @"";
+//                    dnaMap[@"menuFeature"] = deviceStatus. ?: @"0";
                     dnaMap[@"deviceDnaInfoStr"] = device.deviceDnaInfoStr ?: @"";
                     dnaMap[@"keyGroupId"] = @900;
 
