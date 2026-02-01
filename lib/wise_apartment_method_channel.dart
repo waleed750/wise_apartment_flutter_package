@@ -14,6 +14,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   final eventChannel = const EventChannel('wise_apartment/ble_events');
 
   Stream<Map<String, dynamic>>? _syncLockKeyStream;
+  Stream<Map<String, dynamic>>? _syncLockRecordsStream;
 
   @override
   Stream<Map<String, dynamic>> get syncLockKeyStream {
@@ -24,6 +25,19 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       return <String, dynamic>{'type': 'unknown', 'data': event};
     });
     return _syncLockKeyStream!;
+  }
+
+  @override
+  Stream<Map<String, dynamic>> get syncLockRecordsStream {
+    _syncLockRecordsStream ??= eventChannel.receiveBroadcastStream().map((
+      event,
+    ) {
+      if (event is Map) {
+        return Map<String, dynamic>.from(event);
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _syncLockRecordsStream!;
   }
 
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {

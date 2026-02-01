@@ -652,12 +652,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         return;
     }
     
-    NSLog(@"[WiseApartmentPlugin] Syncing lock time");
-    // TODO: Call SDK syncLockTime
-    // Example: [[HXLockManager shared] syncTimeWithAuth:auth completion:^(BOOL success) { ... }];
-    
-    NSLog(@"[WiseApartmentPlugin] Lock time synced successfully");
-    result(@YES);
+    NSLog(@"[WiseApartmentPlugin] Syncing lock time via BleLockManager");
+    [self.lockManager syncLockTime:params result:result];
 }
 
 - (void)handleGetSysParam:(id)args result:(FlutterResult)result {

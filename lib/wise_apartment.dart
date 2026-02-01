@@ -147,6 +147,18 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.syncLockKeyStream;
   }
 
+  /// Stream-based synchronization of lock records from the device.
+  /// Emits incremental results as records are fetched from the lock.
+  /// Each chunk event contains a batch of 10 records.
+  ///
+  /// Event types:
+  /// - 'syncLockRecordsChunk': { type, items (record batch List), totalSoFar, isMore }
+  /// - 'syncLockRecordsDone': { type, items (all records List), total }
+  /// - 'syncLockRecordsError': { type, message, code }
+  Stream<Map<String, dynamic>> get syncLockRecordsStream {
+    return WiseApartmentPlatform.instance.syncLockRecordsStream;
+  }
+
   /// Synchronize the lock's internal clock/time. Returns true on success.
   Future<bool> syncLockTime(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.syncLockTime(auth);

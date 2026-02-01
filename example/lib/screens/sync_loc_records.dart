@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
+import 'dart:async';
 
 class SyncLocRecordsScreen extends StatefulWidget {
   final Map<String, dynamic> auth;
@@ -15,86 +16,165 @@ class SyncLocRecordsScreen extends StatefulWidget {
 class _SyncLocRecordsScreenState extends State<SyncLocRecordsScreen> {
   final _plugin = WiseApartment();
   final List<HXRecordBaseModel> _records = [];
-  int _currentPage = 1; // 1-based
   bool _loading = false;
-  final int _pageSize = 10; // show 10 per page
+  bool _syncing = false;
   int _total = 0;
-  int get _totalPages =>
-      _total == 0 ? 1 : ((_total + _pageSize - 1) ~/ _pageSize);
+  String? _errorMessage;
+  StreamSubscription<Map<String, dynamic>>? _streamSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadPage(1);
   }
 
-  Future<void> _loadPage(int page) async {
-    if (_loading) return;
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startSync() async {
+    if (_syncing) return;
+
     setState(() {
+      _syncing = true;
       _loading = true;
+      _records.clear();
+      _errorMessage = null;
+      _total = 0;
     });
-    final startNum = (page - 1) * _pageSize;
+
     try {
-      final res = await _plugin.syncLockRecordsPage(
-        widget.auth,
-        startNum,
-        _pageSize,
+      // Cancel any existing subscription
+      await _streamSubscription?.cancel();
+
+      // Start listening to the stream
+      _streamSubscription = _plugin.syncLockRecordsStream.listen(
+        (event) {
+          if (!mounted) return;
+
+          final String type = event['type'] ?? '';
+          debugPrint('Received event: $type');
+
+          switch (type) {
+            case 'syncLockRecordsChunk':
+              _handleChunk(event);
+              break;
+            case 'syncLockRecordsDone':
+              _handleDone(event);
+              break;
+            case 'syncLockRecordsError':
+              _handleError(event);
+              break;
+            default:
+              debugPrint('Unknown event type: $type');
+          }
+        },
+        onError: (error) {
+          if (!mounted) return;
+          debugPrint('Stream error: $error');
+          setState(() {
+            _errorMessage = 'Stream error: $error';
+            _loading = false;
+            _syncing = false;
+          });
+        },
+        onDone: () {
+          if (!mounted) return;
+          debugPrint('Stream completed');
+          setState(() {
+            _loading = false;
+            _syncing = false;
+          });
+        },
       );
-      // store last numeric code if present (returns a status object)
-      WiseStatusHandler? status;
-      try {
-        status = WiseStatusStore.setFromMap(res as Map<String, dynamic>?);
-      } catch (_) {}
-      final List<dynamic> recs = res['records'] ?? [];
-      final int total = res['total'] ?? 0;
 
-      // Convert platform Maps -> LockRecord -> HXRecordBaseModel using
-      // existing project factories/extensions so the example UI shows
-      // typed models consistent with the library's domain types.
-      final locks = LockRecord.listFromDynamic(recs);
-      final typed = locks
-          .map((l) => hxRecordFromLockRecord(l))
-          .toList(growable: false);
-
-      setState(() {
-        _records
-          ..clear()
-          ..addAll(typed);
-        _total = total;
-        _currentPage = page;
-      });
+      // Trigger the sync by calling the method (which returns immediately)
+      await _plugin.syncLockRecords(widget.auth, 1);
     } catch (e) {
-      WiseStatusHandler? status;
+      if (!mounted) return;
+      debugPrint('Error starting sync: $e');
+
       String? codeStr;
       String? msg;
       if (e is WiseApartmentException) {
         codeStr = e.code;
         msg = e.message;
-        try {
-          status = WiseStatusStore.setFromWiseException(e);
-        } catch (_) {}
       } else if (e is PlatformException) {
-        try {
-          status = WiseStatusStore.setFromMap(
-            e.details as Map<String, dynamic>?,
-          );
-        } catch (_) {}
+        codeStr = e.code;
+        msg = e.message;
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Sync error: ${msg ?? e} (code: ${codeStr ?? status?.code})',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+
+      setState(() {
+        _errorMessage = 'Sync error: ${msg ?? e} (code: $codeStr)';
+        _loading = false;
+        _syncing = false;
+      });
     }
   }
 
-  Future<void> _refresh() async {
-    await _loadPage(_currentPage);
+  void _handleChunk(Map<String, dynamic> event) {
+    final List<dynamic> items = event['items'] ?? [];
+    final int totalSoFar = event['totalSoFar'] ?? 0;
+    final bool isMore = event['isMore'] ?? false;
+
+    debugPrint(
+      'Chunk received: ${items.length} records, totalSoFar: $totalSoFar, isMore: $isMore',
+    );
+
+    // Convert platform Maps -> LockRecord -> HXRecordBaseModel
+    final locks = LockRecord.listFromDynamic(items);
+    final typed = locks.map((l) => hxRecordFromLockRecord(l)).toList();
+
+    setState(() {
+      _records.addAll(typed);
+      // Keep loading indicator if more data is coming
+      _loading = isMore;
+    });
+  }
+
+  void _handleDone(Map<String, dynamic> event) {
+    final List<dynamic> items = event['items'] ?? [];
+    final int total = event['total'] ?? 0;
+
+    debugPrint('Sync complete: $total records');
+
+    setState(() {
+      _total = total;
+      _loading = false;
+      _syncing = false;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync complete! Received $total records'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _handleError(Map<String, dynamic> event) {
+    final String message = event['message'] ?? 'Unknown error';
+    final int code = event['code'] ?? -1;
+
+    debugPrint('Sync error: $message (code: $code)');
+
+    setState(() {
+      _errorMessage = '$message (code: $code)';
+      _loading = false;
+      _syncing = false;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed: $message'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildRecordTile(HXRecordBaseModel r) {
@@ -123,75 +203,79 @@ class _SyncLocRecordsScreenState extends State<SyncLocRecordsScreen> {
     );
   }
 
-  // `_prettyRecord` removed — not referenced in the UI.
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sync Loc records'),
+        title: const Text('Sync Loc Records (Stream)'),
         actions: [
-          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
+          IconButton(
+            onPressed: _syncing ? null : _startSync,
+            icon: const Icon(Icons.sync),
+          ),
         ],
       ),
       body: Column(
         children: [
-          if (_total > 0)
+          if (_errorMessage != null)
+            Container(
+              width: double.infinity,
+              color: Colors.red.shade100,
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _errorMessage!,
+                style: TextStyle(color: Colors.red.shade900),
+              ),
+            ),
+          if (_total > 0 || _records.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text('Total records on lock: $_total'),
+              child: Text(
+                'Records: ${_records.length}${_total > 0 ? ' / $_total' : ''}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-          Expanded(
-            child: _records.isEmpty && _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _records.length,
-                    itemBuilder: (context, index) =>
-                        _buildRecordTile(_records[index]),
-                  ),
-          ),
+          if (_records.isEmpty && !_loading && !_syncing)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.list, size: 64, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No records yet',
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _startSync,
+                      icon: const Icon(Icons.sync),
+                      label: const Text('Start Sync'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_records.isNotEmpty)
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _records.length,
+                itemBuilder: (context, index) =>
+                    _buildRecordTile(_records[index]),
+              ),
+            ),
           if (_loading)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          // Page selector
-          if (_total > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 8.0,
-                horizontal: 12.0,
-              ),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: List.generate(_totalPages, (i) {
-                  final pageNum = i + 1;
-                  final selected = pageNum == _currentPage;
-                  return OutlinedButton(
-                    onPressed: selected ? null : () => _loadPage(pageNum),
-                    style: selected
-                        ? OutlinedButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary.withOpacity(0.12),
-                          )
-                        : null,
-                    child: Text(
-                      pageNum.toString(),
-                      style: TextStyle(
-                        color: selected
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                    ),
-                  );
-                }),
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 16),
+                  Text('Syncing records...'),
+                ],
               ),
             ),
           const SizedBox(height: 8),

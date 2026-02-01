@@ -29,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result;
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result;
 - (void)syncLockKeyStream:(NSDictionary *)args delegate:(id<SyncLockKeyStreamDelegate>)delegate;
+- (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result;
 
 @end
 

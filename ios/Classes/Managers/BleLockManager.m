@@ -583,6 +583,59 @@
     }
 }
 
+- (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    if (![self validateArgs:args method:@"syncLockTime" one:one]) return;
+
+    // Initialize addHelper if needed
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [one error:@"ERROR" message:@"mac is required" details:nil];
+        return;
+    }
+
+    NSLog(@"[BleLockManager] Synchronizing lock time for mac: %@", mac);
+
+    __weak typeof(self) weakSelf = self;
+    @try {
+        [HXBluetoothLockHelper synchronizeTimeWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            @try {
+                [weakSelf.bleClient disConnectBle:nil];
+
+                if (statusCode == KSHStatusCode_Success) {
+                    NSLog(@"[BleLockManager] Lock time synchronized successfully");
+                    [one success:@YES];
+                } else {
+                    NSLog(@"[BleLockManager] Failed to sync lock time - code: %d, reason: %@", (int)statusCode, reason);
+                    NSDictionary *response = [weakSelf responseMapWithCode:statusCode
+                                                                   message:reason
+                                                                   lockMac:mac
+                                                                      body:nil];
+                    [one error:@"FAILED" message:reason ?: @"Failed to sync lock time" details:response];
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[BleLockManager] Exception in syncLockTime callback: %@", exception);
+                [weakSelf.bleClient disConnectBle:nil];
+                [one error:@"ERROR" message:exception.reason ?: @"Exception in syncLockTime" details:nil];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling syncLockTime: %@", exception);
+        [self.bleClient disConnectBle:nil];
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling syncLockTime" details:nil];
+    }
+}
+
 - (void)setKeyExpirationAlarmTime:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"setKeyExpirationAlarmTime" one:one]) return;

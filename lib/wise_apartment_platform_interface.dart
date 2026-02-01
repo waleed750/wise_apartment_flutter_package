@@ -73,6 +73,9 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Stream of syncLockKey events (chunks, done, errors)
   Stream<Map<String, dynamic>> get syncLockKeyStream;
 
+  /// Stream of syncLockRecords events (chunks, done, errors)
+  Stream<Map<String, dynamic>> get syncLockRecordsStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
 
   /// Retrieve system parameters from the lock (SysParamResult).

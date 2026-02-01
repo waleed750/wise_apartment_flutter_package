@@ -326,7 +326,56 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         break;
       case "syncLockRecords":
         if (recordManager != null) {
-          recordManager.syncLockRecords((Map<String, Object>) call.arguments, safeResult);
+          // Use streaming version if eventSink is available
+          if (eventSink != null) {
+            Log.d(TAG, "Using streaming syncLockRecords");
+            recordManager.syncLockRecordsStream((Map<String, Object>) call.arguments,
+                new LockRecordManager.SyncLockRecordsStreamCallback() {
+                  @Override
+                  public void onChunk(final Map<String, Object> event) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                      @Override
+                      public void run() {
+                        if (eventSink != null) {
+                          Log.d(TAG, "Emitting syncLockRecordsChunk event");
+                          eventSink.success(event);
+                        }
+                      }
+                    });
+                  }
+
+                  @Override
+                  public void onDone(final Map<String, Object> event) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                      @Override
+                      public void run() {
+                        if (eventSink != null) {
+                          Log.d(TAG, "Emitting syncLockRecordsDone event");
+                          eventSink.success(event);
+                        }
+                      }
+                    });
+                  }
+
+                  @Override
+                  public void onError(final Map<String, Object> event) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                      @Override
+                      public void run() {
+                        if (eventSink != null) {
+                          Log.d(TAG, "Emitting syncLockRecordsError event");
+                          eventSink.success(event);
+                        }
+                      }
+                    });
+                  }
+                });
+            safeResult.success(null); // Acknowledge method call immediately
+          } else {
+            // Fallback to non-streaming version
+            Log.d(TAG, "EventSink not available, using non-streaming syncLockRecords");
+            recordManager.syncLockRecords((Map<String, Object>) call.arguments, safeResult);
+          }
         } else {
           safeResult.error("INIT_ERROR", "Record manager not initialized", null);
         }

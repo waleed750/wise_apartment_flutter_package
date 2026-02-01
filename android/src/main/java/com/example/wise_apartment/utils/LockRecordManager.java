@@ -25,6 +25,16 @@ public class LockRecordManager {
     private static final String TAG = "LockRecordManager";
     private final HxjBleClient bleClient;
 
+    /**
+     * Callback interface for streaming syncLockRecords events.
+     * Allows incremental updates to be sent to Flutter via EventChannel.
+     */
+    public interface SyncLockRecordsStreamCallback {
+        void onChunk(Map<String, Object> chunkEvent);
+        void onDone(Map<String, Object> doneEvent);
+        void onError(Map<String, Object> errorEvent);
+    }
+
     // State for recursion
     private int currentSyncIndex = 0;
     private int totalSyncRecords = 0;
@@ -418,5 +428,268 @@ public class LockRecordManager {
         }
 
         return out;
+    }
+
+    /**
+     * Streaming version of syncLockRecords that emits incremental updates via callback.
+     * This method is designed for use with EventChannel to send partial results
+     * to Flutter as they arrive from the BLE SDK.
+     *
+     * @param args Map containing baseAuth and optional logVersion/menuFeature
+     * @param callback Callback to receive chunk, done, and error events
+     */
+    public void syncLockRecordsStream(Map<String, Object> args, final SyncLockRecordsStreamCallback callback) {
+        Log.d(TAG, "syncLockRecordsStream called with args: " + args);
+
+        final BlinkyAuthAction auth = PluginUtils.createAuthAction(args);
+
+        // Determine log version
+        int logVersion = 1;
+        Object lvObj = args.get("logVersion");
+        if (lvObj instanceof Number) {
+            logVersion = ((Number) lvObj).intValue();
+        } else {
+            Object mf = args.get("menuFeature");
+            if (mf instanceof Number) {
+                int menuFeature = ((Number) mf).intValue();
+                if ((menuFeature & 0x4) != 0) {
+                    logVersion = 2;
+                }
+            }
+        }
+        if (logVersion != 1 && logVersion != 2) {
+            logVersion = 1;
+        }
+
+        final int finalLogVersion = logVersion;
+        final List<Map<String, Object>> allRecords = new ArrayList<>();
+        final boolean[] streamClosed = new boolean[]{false};
+
+        BlinkyAction countAction = new BlinkyAction();
+        countAction.setBaseAuthAction(auth);
+
+        try {
+            bleClient.getRecordNum(countAction, new FunCallback<Integer>() {
+                @Override
+                public void onResponse(Response<Integer> response) {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        if (streamClosed[0]) {
+                            Log.d(TAG, "Stream already closed, ignoring getRecordNum error");
+                            return;
+                        }
+                        streamClosed[0] = true;
+
+                        Log.e(TAG, "Failed to get record num: " + response.code());
+                        Map<String, Object> errorEvent = new HashMap<>();
+                        errorEvent.put("type", "syncLockRecordsError");
+                        errorEvent.put("message", WiseStatusCode.description(response.code()));
+                        errorEvent.put("code", response.code());
+                        callback.onError(errorEvent);
+                        return;
+                    }
+
+                    final int total = response.body();
+                    Log.d(TAG, "Total records to sync: " + total);
+
+                    // Start recursive streaming
+                    streamRecordsRecursive(auth, finalLogVersion, 0, total, allRecords, streamClosed, callback);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    if (streamClosed[0]) {
+                        Log.d(TAG, "Ignoring failure - stream already closed");
+                        return;
+                    }
+                    streamClosed[0] = true;
+
+                    Log.e(TAG, "syncLockRecordsStream failed to get record num", t);
+                    Map<String, Object> errorEvent = new HashMap<>();
+                    errorEvent.put("type", "syncLockRecordsError");
+                    errorEvent.put("message", t.getMessage() != null ? t.getMessage() : "Unknown error");
+                    errorEvent.put("code", -1);
+                    callback.onError(errorEvent);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling syncLockRecordsStream", t);
+            Map<String, Object> errorEvent = new HashMap<>();
+            errorEvent.put("type", "syncLockRecordsError");
+            errorEvent.put("message", "Failed to start sync: " + (t.getMessage() != null ? t.getMessage() : "Unknown error"));
+            errorEvent.put("code", -1);
+            callback.onError(errorEvent);
+        }
+    }
+
+    private void streamRecordsRecursive(
+            final BlinkyAuthAction auth,
+            final int logVersion,
+            final int currentIndex,
+            final int total,
+            final List<Map<String, Object>> allRecords,
+            final boolean[] streamClosed,
+            final SyncLockRecordsStreamCallback callback) {
+
+        Log.d(TAG, "Streaming records from index: " + currentIndex + " / " + total);
+
+        SyncLockRecordAction action = new SyncLockRecordAction(currentIndex, 10, logVersion);
+        action.setBaseAuthAction(auth);
+
+        try {
+            bleClient.syncLockRecord(action, new FunCallback<LockRecordDataResult>() {
+                @Override
+                public void onResponse(Response<LockRecordDataResult> response) {
+                    try {
+                        Log.d(TAG, "onResponse called - code: " + response.code() + ", streamClosed: " + streamClosed[0]);
+
+                        if (response.isSuccessful() && response.body() != null) {
+                            LockRecordDataResult body = response.body();
+                            int recordsInBatch = body.getLogNum();
+                            Log.d(TAG, "Received batch: " + recordsInBatch + " records, moreData: " + body.isMoreData());
+
+                            List<Map<String, Object>> batchRecords = new ArrayList<>();
+
+                            // Process logs in this batch
+                            if (recordsInBatch > 0) {
+                                if (logVersion == 1) {
+                                    for (HXRecordBaseModel r : body.getLog1Array()) {
+                                        Map<String, Object> m = mapRecord(r);
+                                        m.put("logVersion", 1);
+                                        allRecords.add(m);
+                                        batchRecords.add(m);
+                                    }
+                                } else {
+                                    for (HXRecord2BaseModel r : body.getLog2Array()) {
+                                        Map<String, Object> m = mapRecord(r);
+                                        m.put("logVersion", 2);
+                                        allRecords.add(m);
+                                        batchRecords.add(m);
+                                    }
+                                }
+
+                                // Emit chunk event
+                                Map<String, Object> chunkEvent = new HashMap<>();
+                                chunkEvent.put("type", "syncLockRecordsChunk");
+                                chunkEvent.put("items", batchRecords);
+                                chunkEvent.put("totalSoFar", allRecords.size());
+                                chunkEvent.put("isMore", body.isMoreData());
+                                callback.onChunk(chunkEvent);
+                            }
+
+                            int nextIndex = currentIndex + recordsInBatch;
+
+                            // Check if we should continue
+                            if (body.isMoreData() && nextIndex < total) {
+                                // Continue streaming
+                                streamRecordsRecursive(auth, logVersion, nextIndex, total, allRecords, streamClosed, callback);
+                            } else {
+                                // Sync complete
+                                if (streamClosed[0]) {
+                                    Log.d(TAG, "Stream already closed");
+                                    return;
+                                }
+                                streamClosed[0] = true;
+
+                                Log.d(TAG, "Sync completed - total records: " + allRecords.size());
+
+                                // Emit done event
+                                Map<String, Object> doneEvent = new HashMap<>();
+                                doneEvent.put("type", "syncLockRecordsDone");
+                                doneEvent.put("items", allRecords);
+                                doneEvent.put("total", allRecords.size());
+                                callback.onDone(doneEvent);
+
+                                // Safely disconnect BLE
+                                try {
+                                    bleClient.disConnectBle(null);
+                                    Log.d(TAG, "BLE disconnected after sync completion");
+                                } catch (Throwable disconnectError) {
+                                    Log.e(TAG, "Error disconnecting BLE", disconnectError);
+                                }
+                            }
+                        } else {
+                            // Error response
+                            if (streamClosed[0]) {
+                                Log.d(TAG, "Stream already closed, ignoring error");
+                                return;
+                            }
+                            streamClosed[0] = true;
+
+                            Log.e(TAG, "Sync failed at index " + currentIndex + " code: " + response.code());
+
+                            Map<String, Object> errorEvent = new HashMap<>();
+                            errorEvent.put("type", "syncLockRecordsError");
+                            errorEvent.put("message", WiseStatusCode.description(response.code()));
+                            errorEvent.put("code", response.code());
+                            callback.onError(errorEvent);
+
+                            // Safely disconnect BLE
+                            try {
+                                bleClient.disConnectBle(null);
+                                Log.d(TAG, "BLE disconnected after error");
+                            } catch (Throwable disconnectError) {
+                                Log.e(TAG, "Error disconnecting BLE", disconnectError);
+                            }
+                        }
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Exception in syncLockRecordsStream onResponse", t);
+
+                        if (!streamClosed[0]) {
+                            streamClosed[0] = true;
+
+                            Map<String, Object> errorEvent = new HashMap<>();
+                            errorEvent.put("type", "syncLockRecordsError");
+                            errorEvent.put("message", "Internal error: " + t.getMessage());
+                            errorEvent.put("code", -1);
+                            callback.onError(errorEvent);
+
+                            // Safely disconnect BLE
+                            try {
+                                bleClient.disConnectBle(null);
+                                Log.d(TAG, "BLE disconnected after exception");
+                            } catch (Throwable disconnectError) {
+                                Log.e(TAG, "Error disconnecting BLE", disconnectError);
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    if (streamClosed[0]) {
+                        Log.d(TAG, "Ignoring failure - stream already closed");
+                        return;
+                    }
+                    streamClosed[0] = true;
+
+                    Log.e(TAG, "syncLockRecordsStream failed", t);
+                    Map<String, Object> errorEvent = new HashMap<>();
+                    errorEvent.put("type", "syncLockRecordsError");
+                    errorEvent.put("message", t.getMessage() != null ? t.getMessage() : "Unknown error");
+                    errorEvent.put("code", -1);
+                    callback.onError(errorEvent);
+
+                    // Safely disconnect BLE
+                    try {
+                        bleClient.disConnectBle(null);
+                        Log.d(TAG, "BLE disconnected after failure");
+                    } catch (Throwable disconnectError) {
+                        Log.e(TAG, "Error disconnecting BLE", disconnectError);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception in streamRecordsRecursive", t);
+
+            if (!streamClosed[0]) {
+                streamClosed[0] = true;
+
+                Map<String, Object> errorEvent = new HashMap<>();
+                errorEvent.put("type", "syncLockRecordsError");
+                errorEvent.put("message", "Failed to query records: " + (t.getMessage() != null ? t.getMessage() : "Unknown error"));
+                errorEvent.put("code", -1);
+                callback.onError(errorEvent);
+            }
+        }
     }
 }
