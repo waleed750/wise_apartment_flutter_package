@@ -776,6 +776,24 @@
     }
 }
 
+// Helpers (keep in the same .m file, outside the method)
+static inline id HXSafeKVC(id obj, NSString *key) {
+    if (!obj || !key) return nil;
+    @try {
+        id v = [obj valueForKey:key];
+        return (v == (id)[NSNull null]) ? nil : v;
+    } @catch (__unused NSException *e) {
+        return nil;
+    }
+}
+
+static inline void HXPut(NSMutableDictionary *m, NSString *key, id value) {
+    if (!m || !key) return;
+    if (value && value != (id)[NSNull null]) {
+        m[key] = value;
+    }
+}
+
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     NSLog(@"[BleLockManager] addDevice called with args: %@", args);
@@ -790,13 +808,14 @@
 
     SHAdvertisementModel *advertisementModel = nil;
 
+    // Build advertisement model either from args or from scan cache
     if (args[@"name"] || args[@"RSSI"] || args[@"chipType"] || args[@"lockType"]) {
         advertisementModel = [[SHAdvertisementModel alloc] init];
         advertisementModel.mac = mac;
 
         if (args[@"name"]) advertisementModel.name = args[@"name"];
 
-        // ✅ FIX #1: RSSI must be assigned to advertisementModel.RSSI (NSNumber*)
+        // RSSI must be NSNumber*
         if (args[@"RSSI"] && args[@"RSSI"] != (id)[NSNull null]) {
             advertisementModel.RSSI = [args[@"RSSI"] isKindOfClass:[NSNumber class]]
                 ? (NSNumber *)args[@"RSSI"]
@@ -819,7 +838,7 @@
     }
 
     @try {
-        // ✅ FIX #2: use self.addHelper (strong property) like the demo
+        // Use strong helper (same pattern as demo)
         if (!self.addHelper) {
             self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
         }
@@ -831,61 +850,142 @@
                                                              HXBLEDeviceStatus *deviceStatus) {
             @try {
                 NSMutableDictionary *finalMap = [NSMutableDictionary dictionary];
-                
+
                 if (statusCode == KSHStatusCode_Success && device != nil && deviceStatus != nil) {
-                    // Build DNA info map
+
+                    // -------------------------
+                    // DNA INFO (match Android keys)
+                    // -------------------------
                     NSMutableDictionary *dnaMap = [NSMutableDictionary dictionary];
-                    dnaMap[@"mac"] = device.lockMac ?: mac;
-                    dnaMap[@"authCode"] = device.adminAuthCode ?: @"";
-                    dnaMap[@"dnaKey"] = device.aesKey ?: @"";
-                    dnaMap[@"protocolVer"] = @(device.bleProtocolVersion);
-                    dnaMap[@"deviceType"] = @(device.lockType);
-                    dnaMap[@"hardwareVer"] = device.hardwareVersion ?: @"";
-                    dnaMap[@"softwareVer"] = device.rfMoudleSoftwareVer ?: @"";
-                    dnaMap[@"rFModuleType"] = @(device.rfModuleType);
-                    dnaMap[@"rFModuleMac"] = device.rfModuleMac ?: @"";
-                    dnaMap[@"deviceDnaInfoStr"] = device.deviceDnaInfoStr ?: @"";
-                    dnaMap[@"keyGroupId"] = @900;
+
+                    // Some SDKs expose a dna object; fallback to device if not found
+                    id dnaObj = HXSafeKVC(device, @"dna")
+                             ?: HXSafeKVC(device, @"deviceDnaInfo")
+                             ?: HXSafeKVC(device, @"dnaInfo")
+                             ?: device;
+
+                    // Android: putSafe(m, "mac", dna::getMac);
+                    HXPut(dnaMap, @"mac", HXSafeKVC(dnaObj, @"mac") ?: (device.lockMac ?: mac));
+
+                    // initTag / deviceType
+                    HXPut(dnaMap, @"initTag", HXSafeKVC(dnaObj, @"initTag") ?: HXSafeKVC(dnaObj, @"InitTag"));
+                    HXPut(dnaMap, @"deviceType", HXSafeKVC(dnaObj, @"deviceType") ?: @(device.lockType));
+
+                    // hardware / software / protocolVer
+                    HXPut(dnaMap, @"hardware",
+                          HXSafeKVC(dnaObj, @"hardWareVer") ?: HXSafeKVC(dnaObj, @"hardware") ?: (device.hardwareVersion ?: @""));
+                    HXPut(dnaMap, @"software",
+                          HXSafeKVC(dnaObj, @"softWareVer") ?: HXSafeKVC(dnaObj, @"software") ?: (device.rfMoudleSoftwareVer ?: @""));
+                    HXPut(dnaMap, @"protocolVer",
+                          HXSafeKVC(dnaObj, @"protocolVer") ?: @(device.bleProtocolVersion));
+
+                    // appCmdSets / dnaAes128Key
+                    HXPut(dnaMap, @"appCmdSets", HXSafeKVC(dnaObj, @"appCmdSets"));
+                    HXPut(dnaMap, @"dnaAes128Key", HXSafeKVC(dnaObj, @"dnaAes128Key") ?: (device.aesKey ?: @""));
+
+                    // authorizedRoot / authorizedUser / authorizedTempUser
+                    HXPut(dnaMap, @"authorizedRoot", HXSafeKVC(dnaObj, @"authorizedRoot"));
+                    HXPut(dnaMap, @"authorizedUser", HXSafeKVC(dnaObj, @"authorizedUser"));
+                    HXPut(dnaMap, @"authorizedTempUser", HXSafeKVC(dnaObj, @"authorizedTempUser"));
+
+                    // rFModuleType / lockFunctionType / maximumVolume / maximumUserNum
+                    HXPut(dnaMap, @"rFModuleType",
+                          HXSafeKVC(dnaObj, @"rFMoudleType") ?: HXSafeKVC(dnaObj, @"rFModuleType") ?: @(device.rfModuleType));
+                    HXPut(dnaMap, @"lockFunctionType", HXSafeKVC(dnaObj, @"lockFunctionType"));
+                    HXPut(dnaMap, @"maximumVolume", HXSafeKVC(dnaObj, @"maximumVolume"));
+                    HXPut(dnaMap, @"maximumUserNum", HXSafeKVC(dnaObj, @"maximumUserNum"));
+
+                    // menuFeature / fingerPrintfNum / projectID / rFModuleMac
+                    HXPut(dnaMap, @"menuFeature", HXSafeKVC(dnaObj, @"menuFeature") ?: @"");
+                    HXPut(dnaMap, @"fingerPrintfNum", HXSafeKVC(dnaObj, @"fingerPrintfNum"));
+                    HXPut(dnaMap, @"projectID", HXSafeKVC(dnaObj, @"projectID"));
+                    HXPut(dnaMap, @"rFModuleMac",
+                          HXSafeKVC(dnaObj, @"RFModuleMac") ?: HXSafeKVC(dnaObj, @"rFModuleMac") ?: (device.rfModuleMac ?: @""));
+
+                    // motorDriverMode / motorSetMenuFunction / MoudleFunction / BleActiveTimes
+                    HXPut(dnaMap, @"motorDriverMode", HXSafeKVC(dnaObj, @"motorDriverMode"));
+                    HXPut(dnaMap, @"motorSetMenuFunction", HXSafeKVC(dnaObj, @"motorSetMenuFunction"));
+                    HXPut(dnaMap, @"MoudleFunction", HXSafeKVC(dnaObj, @"MoudleFunction"));
+                    HXPut(dnaMap, @"BleActiveTimes", HXSafeKVC(dnaObj, @"BleActiveTimes"));
+
+                    // ModuleSoftwareVer / ModuleHardwareVer
+                    HXPut(dnaMap, @"ModuleSoftwareVer", HXSafeKVC(dnaObj, @"ModuleSoftwareVer"));
+                    HXPut(dnaMap, @"ModuleHardwareVer", HXSafeKVC(dnaObj, @"ModuleHardwareVer"));
+
+                    // passwordNumRange / OfflinePasswordVer / supportSystemLanguage
+                    HXPut(dnaMap, @"passwordNumRange", HXSafeKVC(dnaObj, @"passwordNumRange"));
+                    HXPut(dnaMap, @"OfflinePasswordVer", HXSafeKVC(dnaObj, @"OfflinePasswordVer"));
+                    HXPut(dnaMap, @"supportSystemLanguage", HXSafeKVC(dnaObj, @"supportSystemLanguage"));
+
+                    // hotelFunctionEn / schoolOpenNormorl / cabinetLock
+                    HXPut(dnaMap, @"hotelFunctionEn", HXSafeKVC(dnaObj, @"hotelFunctionEn"));
+                    HXPut(dnaMap, @"schoolOpenNormorl", HXSafeKVC(dnaObj, @"schoolOpenNormorl"));
+                    HXPut(dnaMap, @"cabinetLock", HXSafeKVC(dnaObj, @"cabinetLock"));
+
+                    // lockSystemFunction / lockNetSystemFunction
+                    HXPut(dnaMap, @"lockSystemFunction", HXSafeKVC(dnaObj, @"lockSystemFunction"));
+                    HXPut(dnaMap, @"lockNetSystemFunction", HXSafeKVC(dnaObj, @"lockNetSystemFunction"));
+
+                    // sysLanguage / keyAddMenuType / functionFlag
+                    HXPut(dnaMap, @"sysLanguage", HXSafeKVC(dnaObj, @"sysLanguage"));
+                    HXPut(dnaMap, @"keyAddMenuType", HXSafeKVC(dnaObj, @"keyAddMenuType"));
+                    HXPut(dnaMap, @"functionFlag", HXSafeKVC(dnaObj, @"functionFlag"));
+
+                    // bleSmartCardNfcFunction / wisapartmentCardFunction
+                    HXPut(dnaMap, @"bleSmartCardNfcFunction", HXSafeKVC(dnaObj, @"bleSmartCardNfcFunction"));
+                    HXPut(dnaMap, @"wisapartmentCardFunction", HXSafeKVC(dnaObj, @"wisapartmentCardFunction"));
+
+                    // lockCompanyId / deviceDnaInfoStr
+                    HXPut(dnaMap, @"lockCompanyId", HXSafeKVC(dnaObj, @"lockCompanyId"));
+                    HXPut(dnaMap, @"deviceDnaInfoStr",
+                          HXSafeKVC(dnaObj, @"deviceDnaInfoStr") ?: (device.deviceDnaInfoStr ?: @""));
+
+                    // Keep your extra auth fields (optional but useful for iOS caching)
+                    HXPut(dnaMap, @"authCode", device.adminAuthCode ?: @"");
+                    HXPut(dnaMap, @"dnaKey", device.aesKey ?: @"");
+                    HXPut(dnaMap, @"keyGroupId", @900);
 
                     // Cache auth material so subsequent iOS calls can be mac-only.
                     [self.bleClient setAuth:dnaMap forMac:(device.lockMac ?: mac)];
-                    
-                    // Build sysParam map
+
+                    // -------------------------
+                    // SYS PARAM (device status) - keep as-is unless you have Android sysParam keys list
+                    // -------------------------
                     NSMutableDictionary *sysParamMap = [NSMutableDictionary dictionary];
-                    if (deviceStatus != nil) {
-                        sysParamMap[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
-                        sysParamMap[@"lockMac"] = deviceStatus.lockMac ?: mac;
-                        sysParamMap[@"openMode"] = @(deviceStatus.openMode);
-                        sysParamMap[@"power"] = @(deviceStatus.power);
-                        sysParamMap[@"systemVolume"] = @(deviceStatus.systemVolume);
-                        sysParamMap[@"menuFeature"] = @"";
-                    }
-                    
-                    // Build response matching Android structure
+                    sysParamMap[@"deviceStatusStr"] = deviceStatus.deviceStatusStr ?: @"";
+                    sysParamMap[@"lockMac"] = deviceStatus.lockMac ?: mac;
+                    sysParamMap[@"openMode"] = @(deviceStatus.openMode);
+                    sysParamMap[@"power"] = @(deviceStatus.power);
+                    sysParamMap[@"systemVolume"] = @(deviceStatus.systemVolume);
+                    sysParamMap[@"menuFeature"] = @"";
+
+                    // -------------------------
+                    // Response
+                    // -------------------------
                     finalMap[@"ok"] = @YES;
                     finalMap[@"stage"] = @"addDevice";
                     finalMap[@"dnaInfo"] = dnaMap;
                     finalMap[@"sysParam"] = sysParamMap;
-                    
+
                     NSDictionary *addDeviceResp = [self responseMapWithCode:statusCode
                                                                      message:reason
                                                                      lockMac:mac
                                                                         body:dnaMap];
                     finalMap[@"responses"] = @{@"addDevice": addDeviceResp};
-                    
+
                     [one success:finalMap];
                 } else {
                     finalMap[@"ok"] = @NO;
                     finalMap[@"stage"] = @"addDevice";
                     finalMap[@"dnaInfo"] = [NSNull null];
                     finalMap[@"sysParam"] = [NSNull null];
-                    
+
                     NSDictionary *addDeviceResp = [self responseMapWithCode:statusCode
                                                                      message:reason
                                                                      lockMac:mac
                                                                         body:nil];
                     finalMap[@"responses"] = @{@"addDevice": addDeviceResp};
-                    
+
                     [one error:@"FAILED" message:reason ?: @"addDevice failed" details:finalMap];
                 }
             } @catch (NSException *exception) {
@@ -898,5 +998,6 @@
         [one error:@"ERROR" message:exception.reason ?: @"Exception calling addDevice" details:nil];
     }
 }
+
 
 @end
