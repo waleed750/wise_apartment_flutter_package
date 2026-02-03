@@ -18,7 +18,11 @@
 #import "HxjBleClient.h"
 
 #import <HXJBLESDK/HXJBLESDKHeader.h>
+#import <HXJBLESDK/HXAddBluetoothLockHelper.h>
 #import <HXJBLESDK/SHBLENetworkConfigParam.h>
+#import <HXJBLESDK/HXBLEAddPasswordKeyParams.h>
+#import <HXJBLESDK/HXBLEAddOtherKeyParams.h>
+#import <HXJBLESDK/HXKeyModel.h>
 
 // Channel names
 // Primary MethodChannel name (per requirement)
@@ -50,6 +54,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 @property (nonatomic, strong) LockRecordManager *recordManager;
 
 @property (nonatomic, copy, nullable) NSString *lastConnectedMac;
+@property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
 
 @end
 
@@ -338,24 +343,40 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         return;
     }
     
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+    
+    // Extract data from Dart structure: {'wifi': wifiJson, 'dna': dna}
     NSString *wifiJson = params[@"wifi"];
-    NSString *mac = params[@"mac"];
+    NSDictionary *dna = params[@"dna"];
     
     if (!wifiJson) {
         NSLog(@"[WiseApartmentPlugin] Missing wifi parameter");
         result(@{@"success": @NO, @"message": @"wifi parameter is required"});
         return;
     }
-
-    // Attempt to infer mac from wifiJson if caller didn't provide it.
-    if ((!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) && [wifiJson isKindOfClass:[NSString class]]) {
-        NSData *data = [(NSString *)wifiJson dataUsingEncoding:NSUTF8StringEncoding];
-        if (data) {
-            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            if ([obj isKindOfClass:[NSDictionary class]]) {
-                id m = ((NSDictionary *)obj)[@"lockMac"] ?: ((NSDictionary *)obj)[@"mac"];
-                if ([m isKindOfClass:[NSString class]]) {
-                    mac = (NSString *)m;
+    
+    if (![dna isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"[WiseApartmentPlugin] Missing or invalid dna parameter");
+        result(@{@"success": @NO, @"message": @"dna parameter is required"});
+        return;
+    }
+    
+    // Extract mac from dna dictionary
+    NSString *mac = dna[@"mac"];
+    if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
+        // Attempt to infer mac from wifiJson as fallback
+        if ([wifiJson isKindOfClass:[NSString class]]) {
+            NSData *data = [(NSString *)wifiJson dataUsingEncoding:NSUTF8StringEncoding];
+            if (data) {
+                id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if ([obj isKindOfClass:[NSDictionary class]]) {
+                    id m = ((NSDictionary *)obj)[@"lockMac"] ?: ((NSDictionary *)obj)[@"mac"];
+                    if ([m isKindOfClass:[NSString class]]) {
+                        mac = (NSString *)m;
+                    }
                 }
             }
         }
@@ -367,7 +388,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     }
 
     // Prepare: set device AES key before calling SDK methods (prevents 228 error)
-    if (![self prepare:params]) {
+    // Use dna dictionary for authentication
+    if (![self prepare:dna]) {
         result(@{ @"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
         return;
     }
@@ -447,10 +469,15 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         return;
     }
     
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+    
     NSString *mac = [params[@"mac"] lowercaseString];
     // Prepare: configure device auth before connecting
     [self prepare:params];
-
+    
     [HXBluetoothLockHelper connectPeripheralWithMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
         dispatch_async(dispatch_get_main_queue(), ^{
             BOOL ok = (statusCode == KSHStatusCode_Success);
@@ -466,6 +493,12 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         result(@NO);
         return;
     }
+    
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+    
     [HXBluetoothLockHelper tryDisconnectPeripheralWithMac:self.lastConnectedMac];
     result(@YES);
 }
@@ -627,19 +660,131 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
         NSLog(@"[WiseApartmentPlugin] Invalid parameters for addLockKey");
-        result(@{@"success": @NO});
+        result(@{@"success": @NO, @"message": @"Invalid parameters"});
         return;
     }
     
-    NSLog(@"[WiseApartmentPlugin] Adding lock key with params: %@", params);
-    // Parameters are within the dictionary itself
-    // Example keys: mac, authCode, keyType, userType, etc.
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
     
-    // TODO: Call SDK addLockKey
-    // Example: [[HXKeyManager shared] addKeyWithParams:params completion:^(NSDictionary *result) { ... }];
+    // Prepare: set device AES key before calling SDK methods
+    if (![self prepare:params]) {
+        result(@{@"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first"});
+        return;
+    }
     
-    NSLog(@"[WiseApartmentPlugin] Lock key added successfully");
-    result(@{@"success": @YES, @"code": @0});
+    NSString *mac = [params[@"mac"] lowercaseString];
+    if (!mac || mac.length == 0) {
+        result(@{@"success": @NO, @"message": @"mac is required"});
+        return;
+    }
+    
+    // Extract action map (containing key-specific parameters)
+    NSDictionary *actionMap = [params[@"action"] isKindOfClass:[NSDictionary class]] ? params[@"action"] : @{};
+    
+    // Determine key type: password (if password field exists) or other (fingerprint/card/remote)
+    NSString *password = actionMap[@"password"];
+    int addedKeyType = [actionMap[@"addedKeyType"] intValue]; // 1=password, 2=fingerprint, 3=card, 4=remote
+    
+    HXBLEAddKeyBaseParams *addKeyParams = nil;
+    
+    if (password && password.length > 0) {
+        // Add password key
+        HXBLEAddPasswordKeyParams *passwordParams = [[HXBLEAddPasswordKeyParams alloc] init];
+        passwordParams.key = password;
+        addKeyParams = passwordParams;
+    } else if (addedKeyType >= 2 && addedKeyType <= 4) {
+        // Add fingerprint/card/remote key
+        HXBLEAddOtherKeyParams *otherParams = [[HXBLEAddOtherKeyParams alloc] init];
+        
+        // Map addedKeyType to KSHKeyType
+        if (addedKeyType == 2) {
+            otherParams.keyType = KSHKeyType_Fingerprint;
+        } else if (addedKeyType == 3) {
+            otherParams.keyType = KSHKeyType_Card;
+            // If cardId provided, add by card number; otherwise swipe to add
+            NSString *cardId = actionMap[@"cardId"];
+            if (cardId && cardId.length > 0) {
+                otherParams.cardId = cardId;
+            }
+        } else if (addedKeyType == 4) {
+            otherParams.keyType = KSHKeyType_RemoteControl;
+        }
+        
+        addKeyParams = otherParams;
+    } else {
+        result(@{@"success": @NO, @"message": @"Invalid key type or missing password"});
+        return;
+    }
+    
+    // Set common base parameters
+    addKeyParams.lockMac = mac;
+    addKeyParams.keyGroupId = [actionMap[@"addedKeyGroupId"] intValue] ?: 900;
+    addKeyParams.vaildNumber = [actionMap[@"vaildNumber"] intValue] ?: 255; // 255 = unlimited
+    addKeyParams.validStartTime = [actionMap[@"validStartTime"] longValue] ?: 0; // 0 = permanent
+    addKeyParams.validEndTime = [actionMap[@"validEndTime"] longValue] ?: 0xFFFFFFFF; // 0xFFFFFFFF = permanent
+    addKeyParams.authMode = [actionMap[@"vaildMode"] intValue] ?: 1; // 1 = validity period, 2 = periodic
+    
+    // Optional: periodic authorization parameters (authMode == 2)
+    if (addKeyParams.authMode == 2) {
+        addKeyParams.week = [actionMap[@"week"] intValue] ?: 0;
+        addKeyParams.dayStartTimes = [actionMap[@"dayStartTimes"] intValue] ?: 0;
+        addKeyParams.dayEndTimes = [actionMap[@"dayEndTimes"] intValue] ?: 0;
+    }
+    
+    NSLog(@"[WiseApartmentPlugin] Adding lock key - type: %d, mac: %@", addedKeyType, mac);
+    
+    @try {
+        [HXBluetoothLockHelper addKey:addKeyParams completionBlock:^(KSHStatusCode statusCode, NSString *reason, HXKeyModel *keyObj, int authTotal, int authCount) {
+            @try {
+                NSLog(@"[WiseApartmentPlugin] addKey callback - status: %d, authTotal: %d, authCount: %d", (int)statusCode, authTotal, authCount);
+                
+                // Build response body
+                NSMutableDictionary *body = [NSMutableDictionary dictionary];
+                if (keyObj != nil) {
+                    NSDictionary *keyMap = [keyObj dicFromObject];
+                    if ([keyMap isKindOfClass:[NSDictionary class]]) {
+                        body[@"keyObj"] = keyMap;
+                    }
+                }
+                body[@"authTotal"] = @(authTotal);
+                body[@"authCount"] = @(authCount);
+                body[@"statusCode"] = @((int)statusCode);
+                
+                BOOL ok = (statusCode == KSHStatusCode_Success);
+                body[@"success"] = @(ok);
+                body[@"code"] = @((int)statusCode);
+                body[@"message"] = reason ?: @"";
+                body[@"lockMac"] = mac;
+                
+                // For fingerprint/card adding, multiple callbacks may be triggered
+                // Only send final result when key is successfully added or error occurs
+                if (ok && keyObj != nil) {
+                    // Key successfully added - send success
+                    NSLog(@"[WiseApartmentPlugin] Lock key added successfully");
+                    result(body);
+                } else if (!ok) {
+                    // Error occurred - send error
+                    NSLog(@"[WiseApartmentPlugin] Lock key add failed: %@", reason);
+                    result(body);
+                } else if (authTotal != 255 && authCount >= authTotal) {
+                    // Fingerprint verification complete but no key returned yet
+                    NSLog(@"[WiseApartmentPlugin] Verification complete (%d/%d)", authCount, authTotal);
+                    result(body);
+                }
+                // Otherwise, this is an intermediate callback (fingerprint verification in progress)
+                // Don't send result yet - wait for final callback
+            } @catch (NSException *exception) {
+                NSLog(@"[WiseApartmentPlugin] Exception in addKey callback: %@", exception);
+                result(@{@"success": @NO, @"message": exception.reason ?: @"Exception in addKey callback"});
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[WiseApartmentPlugin] Exception calling addKey: %@", exception);
+        result(@{@"success": @NO, @"message": exception.reason ?: @"Exception calling addKey"});
+    }
 }
 
 - (void)handleSyncLockKey:(id)args result:(FlutterResult)result {

@@ -273,15 +273,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     Map<String, dynamic> dna,
   ) async {
     try {
-      final args = Platform.isAndroid
-          ? <String, dynamic>{'wifi': wifiJson, 'dna': dna}
-          : <String, dynamic>{
-              // iOS does not require auth material; mac is enough.
-              'wifi': wifiJson,
-              'mac': dna['mac'] ?? dna['lockMac'],
-              // Keep dna for backward compatibility (native may ignore it).
-              'dna': dna,
-            };
+      final args = {'wifi': wifiJson, 'dna': dna};
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('regWifi', args);
       if (result != null) return result;
