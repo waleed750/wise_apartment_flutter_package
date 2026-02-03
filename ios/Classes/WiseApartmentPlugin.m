@@ -31,10 +31,6 @@ static NSString *const kMethodChannelName = @"wise_apartment/ble";
 static NSString *const kLegacyMethodChannelName = @"wise_apartment/methods";
 static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
-@interface SyncLockKeyStreamDelegateImpl : NSObject <SyncLockKeyStreamDelegate>
-- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter;
-@end
-
 @interface WiseApartmentPlugin ()
 
 @property (nonatomic, strong) FlutterMethodChannel *methodChannel;
@@ -143,14 +139,25 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 
 - (FlutterError* _Nullable)onListenWithArguments:(id _Nullable)arguments
                                        eventSink:(FlutterEventSink)events {
-    NSLog(@"[WiseApartmentPlugin] Event channel onListen called");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    NSLog(@"[WiseApartmentPlugin] ✓ onListen CALLED - Flutter started listening to EventChannel");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    
     // Store event sink for streaming events to Flutter
     [self.eventEmitter setEventSink:events];
+    
+    // Verify it was set
+    BOOL hasListener = [self.eventEmitter hasActiveListener];
+    NSLog(@"[WiseApartmentPlugin] Event sink registered. hasActiveListener: %@", hasListener ? @"YES" : @"NO");
+    
     return nil;
 }
 
 - (FlutterError* _Nullable)onCancelWithArguments:(id _Nullable)arguments {
-    NSLog(@"[WiseApartmentPlugin] Event channel onCancel called");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    NSLog(@"[WiseApartmentPlugin] onCancel CALLED - Flutter stopped listening");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    
     // Clear event sink when Flutter stops listening
     [self.eventEmitter clearEventSink];
     return nil;
@@ -388,7 +395,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     }
 
     // Prepare: set device AES key before calling SDK methods (prevents 228 error)
-    // Use dna dictionary for authentication
+    // Use dna dictionary for autheƒntication
     if (![self prepare:dna]) {
         result(@{ @"success": @NO, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
         return;
@@ -827,27 +834,36 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
 }
 
 - (void)handleSyncLockKey:(id)args result:(FlutterResult)result {
-    NSLog(@"[WiseApartmentPlugin] handleSyncLockKey called with args: %@", args);
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    NSLog(@"[WiseApartmentPlugin] handleSyncLockKey CALLED");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    NSLog(@"[WiseApartmentPlugin] Args: %@", args);
+    
     NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
     if (!params) {
-        NSLog(@"[WiseApartmentPlugin] Invalid parameters for syncLockKey");
+        NSLog(@"[WiseApartmentPlugin] ✗ ERROR: Invalid parameters for syncLockKey");
         result(@{@"success": @NO});
         return;
     }
 
-    // Use streaming version if EventEmitter has active listener
-    if ([self.eventEmitter hasActiveListener]) {
-        NSLog(@"[WiseApartmentPlugin] Using streaming syncLockKey");
+    // Check if EventEmitter has active listener
+    BOOL hasListener = [self.eventEmitter hasActiveListener];
+    NSLog(@"[WiseApartmentPlugin] Checking hasActiveListener: %@", hasListener ? @"YES" : @"NO");
+    
+    if (hasListener) {
+        NSLog(@"[WiseApartmentPlugin] ✓ Using STREAMING mode (EventChannel active)");
+        NSLog(@"[WiseApartmentPlugin]   ↳ Calling syncLockKeyStream...");
         
-        // Create delegate wrapper to emit events via EventEmitter
-        id<SyncLockKeyStreamDelegate> streamDelegate = [[SyncLockKeyStreamDelegateImpl alloc] initWithEventEmitter:self.eventEmitter];
-        
-        [self.lockManager syncLockKeyStream:params delegate:streamDelegate];
-        
-        // Return immediately - results come via stream
-        result(nil);
+        // Call streaming version with eventEmitter directly (matches syncLockRecords pattern)
+        [self.lockManager syncLockKeyStream:params eventEmitter:self.eventEmitter];
+        // IMPORTANT: Return a valid acknowledgment (not nil) - Flutter requires non-null
+
+        NSLog(@"[WiseApartmentPlugin]   ↳ Returning acknowledgment (results via EventChannel)");
+        result(@{@"streaming": @YES, @"message": @"Sync started - listen to syncLockKeyStream"});
     } else {
-        NSLog(@"[WiseApartmentPlugin] Using non-streaming syncLockKey (no active listener)");
+        NSLog(@"[WiseApartmentPlugin] ⚠️ Using NON-STREAMING mode (no active listener)");
+        NSLog(@"[WiseApartmentPlugin]   ↳ This means Flutter is NOT listening to EventChannel!");
+        NSLog(@"[WiseApartmentPlugin]   ↳ Calling synclockkeys (returns via MethodChannel)...");
         [self.lockManager synclockkeys:params result:result];
     }
 }
@@ -894,41 +910,6 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
  */
 - (BOOL)prepare:(NSDictionary *)args {
     return [self wa_configureDeviceForAuth:args];
-}
-
-@end
-
-#pragma mark - SyncLockKeyStreamDelegate Implementation
-
-/**
- * Concrete implementation of SyncLockKeyStreamDelegate that forwards events
- * to the EventEmitter for delivery to Flutter via EventChannel.
- */
-@implementation SyncLockKeyStreamDelegateImpl {
-    WAEventEmitter *_eventEmitter;
-}
-
-- (instancetype)initWithEventEmitter:(WAEventEmitter *)eventEmitter {
-    self = [super init];
-    if (self) {
-        _eventEmitter = eventEmitter;
-    }
-    return self;
-}
-
-- (void)onChunk:(NSDictionary *)chunkEvent {
-    NSLog(@"[SyncLockKeyStreamDelegate] onChunk called");
-    [_eventEmitter emitEvent:chunkEvent];
-}
-
-- (void)onDone:(NSDictionary *)doneEvent {
-    NSLog(@"[SyncLockKeyStreamDelegate] onDone called");
-    [_eventEmitter emitEvent:doneEvent];
-}
-
-- (void)onError:(NSDictionary *)errorEvent {
-    NSLog(@"[SyncLockKeyStreamDelegate] onError called");
-    [_eventEmitter emitEvent:errorEvent];
 }
 
 @end

@@ -11,6 +11,7 @@
 #import "HxjBleClient.h"
 #import "OneShotResult.h"
 #import "PluginUtils.h"
+#import "WAEventEmitter.h"
 
 @interface BleLockManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
@@ -469,165 +470,187 @@
 #pragma mark - Streaming Sync Lock Keys
 
 /**
- * Streaming version of synclockkeys that emits incremental updates via delegate.
+ * Streaming version of synclockkeys that emits incremental updates via eventEmitter.
  * This method is designed for use with EventChannel to send partial results
  * to Flutter as they arrive from the BLE SDK.
  *
+ * Pattern matches syncLockRecordsStream: SDK callback fires multiple times,
+ * emitting events directly to eventEmitter until moreData=NO.
+ * When moreData=NO or on error, the connection is closed.
+ *
  * @param args Dictionary containing baseAuth
- * @param delegate Delegate to receive chunk, done, and error events
+ * @param eventEmitter Event emitter to send events to Flutter
  */
-- (void)syncLockKeyStream:(NSDictionary *)args delegate:(id<SyncLockKeyStreamDelegate>)delegate {
-    NSLog(@"[BleLockManager] syncLockKeyStream called with args: %@", args);
+- (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter {
+    NSLog(@"[BleLockManager] ========================================");
+    NSLog(@"[BleLockManager] syncLockKeyStream CALLED");
+    NSLog(@"[BleLockManager] ========================================");
+    NSLog(@"[BleLockManager] Args: %@", args);
     
-    if (!delegate) {
-        NSLog(@"[BleLockManager] ERROR: delegate is nil");
+    if (!eventEmitter) {
+        NSLog(@"[BleLockManager] ✗ CRITICAL ERROR: eventEmitter is nil!");
         return;
     }
+    NSLog(@"[BleLockManager] ✓ eventEmitter is valid");
     
     // Initialize addHelper if needed
     if (!self.addHelper) {
         self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+        NSLog(@"[BleLockManager] ✓ addHelper initialized");
     }
 
     FlutterError *cfgErr = nil;
     if (![self configureLockFromArgs:args error:&cfgErr]) {
-        NSDictionary *errorEvent = @{
+        NSLog(@"[BleLockManager] ✗ Configuration failed: %@", cfgErr.message);
+        [eventEmitter emitEvent:@{
             @"type": @"syncLockKeyError",
             @"message": cfgErr.message ?: @"Configuration error",
             @"code": @(-1)
-        };
-        [delegate onError:errorEvent];
+        }];
         return;
     }
+    NSLog(@"[BleLockManager] ✓ Lock configured from args");
 
     NSString *mac = [PluginUtils lockMacFromArgs:args];
     if (mac.length == 0) {
-        NSDictionary *errorEvent = @{
+        NSLog(@"[BleLockManager] ✗ ERROR: mac is missing or empty");
+        [eventEmitter emitEvent:@{
             @"type": @"syncLockKeyError",
             @"message": @"mac is required",
             @"code": @(-1)
-        };
-        [delegate onError:errorEvent];
+        }];
         return;
     }
+    NSLog(@"[BleLockManager] ✓ Lock MAC: %@", mac);
 
     __weak typeof(self) weakSelf = self;
     __block NSMutableArray<NSDictionary *> *allKeys = [NSMutableArray array];
-    __block BOOL streamClosed = NO;
+    __block int totalKeys = 0;
+    __block BOOL hasReceivedData = NO;
+    __block int callbackCount = 0;
 
+    NSLog(@"[BleLockManager] ➤ Calling HXBluetoothLockHelper getKeyListWithLockMac...");
+    
     @try {
+        // SDK calls this block multiple times: once per key, then a final call with moreData=NO
         [HXBluetoothLockHelper getKeyListWithLockMac:mac completionBlock:^(KSHStatusCode statusCode, NSString *reason, HXKeyModel *keyObj, int totalOut, BOOL moreData) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) {
+                NSLog(@"[BleLockManager] ⚠️ WARNING: strongSelf is nil in callback");
+                return;
+            }
+            
+            callbackCount++;
+            
             @try {
-                NSLog(@"[BleLockManager] getKeyList callback - statusCode: %d, moreData: %d, streamClosed: %d", (int)statusCode, moreData, streamClosed);
+                NSLog(@"[BleLockManager] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                NSLog(@"[BleLockManager] Callback #%d", callbackCount);
+                NSLog(@"[BleLockManager]   statusCode: %d (%@)", (int)statusCode, statusCode == KSHStatusCode_Success ? @"SUCCESS" : @"ERROR");
+                NSLog(@"[BleLockManager]   reason: %@", reason ?: @"(none)");
+                NSLog(@"[BleLockManager]   keyObj: %@", keyObj ? @"PRESENT" : @"NIL");
+                NSLog(@"[BleLockManager]   totalOut: %d", totalOut);
+                NSLog(@"[BleLockManager]   moreData: %@", moreData ? @"YES (more keys coming)" : @"NO (last callback)");
+                NSLog(@"[BleLockManager] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 
-                // Process successful responses
-                if (statusCode == KSHStatusCode_Success) {
-                    if (keyObj != nil) {
-                        NSDictionary *keyMap = [keyObj dicFromObject];
-                        if ([keyMap isKindOfClass:[NSDictionary class]]) {
-                            [allKeys addObject:keyMap];
-                            
-                            // Emit chunk event with this single key
-                            NSDictionary *chunkEvent = @{
-                                @"type": @"syncLockKeyChunk",
-                                @"item": keyMap,
-                                // Keep an array form too, for callers that expect batches.
-                                @"items": @[ keyMap ],
-                                @"keyNum": keyMap[@"keyNum"] ?: @(0),
-                                @"totalSoFar": @(allKeys.count),
-                                @"isMore": @(moreData)
-                            };
-                            
-                            NSLog(@"[BleLockManager] Emitting chunk - key: %@, isMore: %d, total: %lu",
-                                  keyMap[@"keyNum"], moreData, (unsigned long)allKeys.count);
-                            [delegate onChunk:chunkEvent];
-                        }
-                    }
-                    
-                    // If no more data, close stream
-                    if (!moreData) {
-                        if (streamClosed) {
-                            NSLog(@"[BleLockManager] Stream already closed");
-                            return;
-                        }
-                        streamClosed = YES;
-                        
-                        NSLog(@"[BleLockManager] No more data - closing stream with %lu keys", (unsigned long)allKeys.count);
-                        
-                        // Emit done event
-                        NSDictionary *doneEvent = @{
-                            @"type": @"syncLockKeyDone",
-                            @"items": allKeys,
-                            @"total": @(allKeys.count)
-                        };
-                        [delegate onDone:doneEvent];
-                        
-                        // Safely disconnect BLE
-                        @try {
-                            [weakSelf.bleClient disConnectBle:nil];
-                            NSLog(@"[BleLockManager] BLE disconnected after sync completion");
-                        } @catch (NSException *disconnectEx) {
-                            NSLog(@"[BleLockManager] Error disconnecting BLE: %@", disconnectEx);
-                        }
-                    }
+                // Update total if provided
+                if (totalOut > 0) {
+                    totalKeys = totalOut;
                 }
-                // Error response
-                else {
-                    if (streamClosed) {
-                        NSLog(@"[BleLockManager] Stream already closed, ignoring error");
-                        return;
+                
+                // Handle error responses
+                if (statusCode != KSHStatusCode_Success) {
+                    NSLog(@"[BleLockManager] ✗ Error response detected, disconnecting BLE...");
+                    
+                    // Disconnect BLE on error
+                    if (strongSelf.bleClient) {
+                        [strongSelf.bleClient disConnectBle:nil];
                     }
-                    streamClosed = YES;
                     
-                    NSLog(@"[BleLockManager] Error response - code: %d", (int)statusCode);
-                    
-                    NSDictionary *errorEvent = @{
+                    NSLog(@"[BleLockManager] ➤ Emitting syncLockKeyError event");
+                    [eventEmitter emitEvent:@{
                         @"type": @"syncLockKeyError",
                         @"message": reason ?: @"Operation failed",
                         @"code": @((int)statusCode)
-                    };
-                    [delegate onError:errorEvent];
-                    
-                    // Safely disconnect BLE
-                    @try {
-                        [weakSelf.bleClient disConnectBle:nil];
-                        NSLog(@"[BleLockManager] BLE disconnected after error");
-                    } @catch (NSException *disconnectEx) {
-                        NSLog(@"[BleLockManager] Error disconnecting BLE: %@", disconnectEx);
+                    }];
+                    return;
+                }
+                
+                // Process key object if present
+                if (keyObj != nil) {
+                    hasReceivedData = YES;
+                    NSDictionary *keyMap = [keyObj dicFromObject];
+                    if ([keyMap isKindOfClass:[NSDictionary class]]) {
+                        [allKeys addObject:keyMap];
+                        
+                        NSLog(@"[BleLockManager] ➤ Emitting syncLockKeyChunk event");
+                        
+                        // Emit chunk event with this single key
+                        [eventEmitter emitEvent:@{
+                            @"type": @"syncLockKeyChunk",
+                            @"item": keyMap,
+                            @"items": @[ keyMap ],
+                            @"keyNum": keyMap[@"keyNum"] ?: @(0),
+                            @"totalSoFar": @(allKeys.count),
+                            @"total": @(totalKeys),
+                            @"isMore": @(moreData)
+                        }];
+                        
+                        NSLog(@"[BleLockManager]   ✓ Chunk emitted - keyNum: %@, totalSoFar: %lu",
+                              keyMap[@"keyNum"], (unsigned long)allKeys.count);
                     }
+                }
+                
+                // If no more data, close stream and disconnect
+                if (!moreData) {
+                    NSLog(@"[BleLockManager] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    NSLog(@"[BleLockManager] moreData=NO - Stream complete!");
+                    NSLog(@"[BleLockManager]   Total callbacks: %d", callbackCount);
+                    NSLog(@"[BleLockManager]   Keys received: %lu", (unsigned long)allKeys.count);
+                    NSLog(@"[BleLockManager]   Expected total: %d", totalKeys);
+                    NSLog(@"[BleLockManager] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    
+                    NSLog(@"[BleLockManager] ➤ Disconnecting BLE...");
+                    if (strongSelf.bleClient) {
+                        [strongSelf.bleClient disConnectBle:nil];
+                    }
+                    
+                    NSLog(@"[BleLockManager] ➤ Emitting syncLockKeyDone event");
+                    
+                    // Always emit done event
+                    [eventEmitter emitEvent:@{
+                        @"type": @"syncLockKeyDone",
+                        @"items": allKeys,
+                        @"total": @(allKeys.count),
+                        @"expectedTotal": @(totalKeys)
+                    }];
+                    
+                    NSLog(@"[BleLockManager] ✓ Done event emitted - sync complete!");
                 }
             } @catch (NSException *exception) {
-                NSLog(@"[BleLockManager] Exception in syncLockKeyStream callback: %@", exception);
+                NSLog(@"[BleLockManager] ✗ EXCEPTION in callback: %@", exception);
                 
-                if (!streamClosed) {
-                    streamClosed = YES;
-                    
-                    NSDictionary *errorEvent = @{
-                        @"type": @"syncLockKeyError",
-                        @"message": exception.reason ?: @"Internal error",
-                        @"code": @(-1)
-                    };
-                    [delegate onError:errorEvent];
-                    
-                    // Safely disconnect BLE
-                    @try {
-                        [weakSelf.bleClient disConnectBle:nil];
-                        NSLog(@"[BleLockManager] BLE disconnected after exception");
-                    } @catch (NSException *disconnectEx) {
-                        NSLog(@"[BleLockManager] Error disconnecting BLE: %@", disconnectEx);
-                    }
+                if (strongSelf.bleClient) {
+                    [strongSelf.bleClient disConnectBle:nil];
                 }
+                
+                [eventEmitter emitEvent:@{
+                    @"type": @"syncLockKeyError",
+                    @"message": exception.reason ?: @"Internal error",
+                    @"code": @(-1)
+                }];
             }
         }];
-    } @catch (NSException *exception) {
-        NSLog(@"[BleLockManager] Exception calling syncLockKeyStream: %@", exception);
         
-        NSDictionary *errorEvent = @{
+        NSLog(@"[BleLockManager] ✓ getKeyListWithLockMac called successfully, waiting for callbacks...");
+        
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] ✗ EXCEPTION calling getKeyListWithLockMac: %@", exception);
+        
+        [eventEmitter emitEvent:@{
             @"type": @"syncLockKeyError",
             @"message": exception.reason ?: @"Failed to start sync",
             @"code": @(-1)
-        };
-        [delegate onError:errorEvent];
+        }];
     }
 }
 

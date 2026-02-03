@@ -3,18 +3,9 @@
 
 @class BleScanManager;
 @class HxjBleClient;
+@class WAEventEmitter;
 
 NS_ASSUME_NONNULL_BEGIN
-
-/**
- * Callback protocol for streaming syncLockKey events.
- * Allows incremental updates to be sent to Flutter via EventChannel.
- */
-@protocol SyncLockKeyStreamDelegate <NSObject>
-- (void)onChunk:(NSDictionary *)chunkEvent;
-- (void)onDone:(NSDictionary *)doneEvent;
-- (void)onError:(NSDictionary *)errorEvent;
-@end
 
 @interface BleLockManager : NSObject
 
@@ -28,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result;
 - (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result;
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result;
-- (void)syncLockKeyStream:(NSDictionary *)args delegate:(id<SyncLockKeyStreamDelegate>)delegate;
+- (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result;
 
 @end
