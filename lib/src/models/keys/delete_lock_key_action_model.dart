@@ -1,5 +1,5 @@
 /// Model representing parameters for deleting a lock key action.
-/// 
+///
 /// This model supports four deletion modes:
 /// - Mode 0: Delete by key number (requires keyType and keyId)
 /// - Mode 1: Delete by key type (deletes all non-admin keys of specified type)
@@ -47,7 +47,7 @@ class DeleteLockKeyActionModel {
 
   factory DeleteLockKeyActionModel.fromMap(Map<String, dynamic>? m) {
     if (m == null) return DeleteLockKeyActionModel();
-    
+
     int? parseInt(Object? v) {
       if (v == null) return null;
       if (v is int) return v;
@@ -64,9 +64,7 @@ class DeleteLockKeyActionModel {
   }
 
   Map<String, dynamic> toMap() {
-    final map = <String, dynamic>{
-      'deleteMode': deleteMode,
-    };
+    final map = <String, dynamic>{'deleteMode': deleteMode};
 
     // Only include optional fields if they're set
     if (deleteKeyGroupId != null) map['deleteKeyGroupId'] = deleteKeyGroupId;
@@ -94,9 +92,11 @@ class DeleteLockKeyActionModel {
         if (deleteKeyType == null) {
           errors.add('deleteKeyType is required when deleteMode is 0');
         } else if (deleteKeyType! < 1 || deleteKeyType! > 4) {
-          errors.add('deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)');
+          errors.add(
+            'deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)',
+          );
         }
-        
+
         if (deleteKeyId == null) {
           errors.add('deleteKeyId is required when deleteMode is 0');
         } else if (deleteKeyId! < 0) {
@@ -109,7 +109,9 @@ class DeleteLockKeyActionModel {
         if (deleteKeyType == null) {
           errors.add('deleteKeyType is required when deleteMode is 1');
         } else if (deleteKeyType! < 1 || deleteKeyType! > 4) {
-          errors.add('deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)');
+          errors.add(
+            'deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)',
+          );
         }
         break;
 
@@ -118,16 +120,19 @@ class DeleteLockKeyActionModel {
         if (deleteKeyType == null) {
           errors.add('deleteKeyType is required when deleteMode is 2');
         } else if (deleteKeyType! < 1 || deleteKeyType! > 4) {
-          errors.add('deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)');
+          errors.add(
+            'deleteKeyType must be 1 (Password), 2 (Fingerprint), 3 (Card), or 4 (Remote)',
+          );
         }
-        
+
         if (cardNumOrPassword == null || cardNumOrPassword!.isEmpty) {
           errors.add('cardNumOrPassword is required when deleteMode is 2');
         } else {
           // Validate based on key type
           if (deleteKeyType == keyTypePassword) {
             // Password: 6-12 digits, only numbers
-            if (cardNumOrPassword!.length < 6 || cardNumOrPassword!.length > 12) {
+            if (cardNumOrPassword!.length < 6 ||
+                cardNumOrPassword!.length > 12) {
               errors.add('Password must be 6-12 digits');
             }
             if (!RegExp(r'^\d+$').hasMatch(cardNumOrPassword!)) {
@@ -135,8 +140,11 @@ class DeleteLockKeyActionModel {
             }
           } else if (deleteKeyType == keyTypeCard) {
             // Card number: maximum 8 bytes
-            if (cardNumOrPassword!.length > 16) {  // 8 bytes = 16 hex chars
-              errors.add('Card number maximum length is 8 bytes (16 hex characters)');
+            if (cardNumOrPassword!.length > 16) {
+              // 8 bytes = 16 hex chars
+              errors.add(
+                'Card number maximum length is 8 bytes (16 hex characters)',
+              );
             }
           }
         }
@@ -159,7 +167,9 @@ class DeleteLockKeyActionModel {
   void validateOrThrow() {
     final errors = validate();
     if (errors.isNotEmpty) {
-      throw ArgumentError('DeleteLockKeyActionModel validation failed:\n${errors.join('\n')}');
+      throw ArgumentError(
+        'DeleteLockKeyActionModel validation failed:\n${errors.join('\n')}',
+      );
     }
   }
 
@@ -179,13 +189,8 @@ class DeleteLockKeyActionModel {
   }
 
   /// Helper: Create a model for deleting by key type
-  factory DeleteLockKeyActionModel.byKeyType({
-    required int keyType,
-  }) {
-    return DeleteLockKeyActionModel(
-      deleteMode: 1,
-      deleteKeyType: keyType,
-    );
+  factory DeleteLockKeyActionModel.byKeyType({required int keyType}) {
+    return DeleteLockKeyActionModel(deleteMode: 1, deleteKeyType: keyType);
   }
 
   /// Helper: Create a model for deleting by content
@@ -201,9 +206,7 @@ class DeleteLockKeyActionModel {
   }
 
   /// Helper: Create a model for deleting by user ID
-  factory DeleteLockKeyActionModel.byUserId({
-    required int keyGroupId,
-  }) {
+  factory DeleteLockKeyActionModel.byUserId({required int keyGroupId}) {
     return DeleteLockKeyActionModel(
       deleteMode: 3,
       deleteKeyGroupId: keyGroupId,
