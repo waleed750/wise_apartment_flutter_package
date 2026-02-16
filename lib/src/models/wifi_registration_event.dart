@@ -1,5 +1,5 @@
 /// WiFi registration event from the lock device.
-/// 
+///
 /// This model represents real-time status updates during WiFi configuration.
 /// Events are emitted through [WiseApartment.wifiRegistrationStream].
 class WifiRegistrationEvent {
@@ -61,14 +61,15 @@ class WifiRegistrationEvent {
   bool get isSuccess => status == statusCloudConnected;
 
   /// Returns true if this is an error status (0x06, 0x07, 0x08, 0x09)
-  bool get isError => status == statusIncorrectPassword ||
+  bool get isError =>
+      status == statusIncorrectPassword ||
       status == statusTimeout ||
       status == statusServerConnectionFailed ||
       status == statusDeviceNotAuthorized;
 
   /// Returns true if this is a progress status (0x02, 0x04)
-  bool get isProgress => status == statusBindingInProgress ||
-      status == statusRouterConnected;
+  bool get isProgress =>
+      status == statusBindingInProgress || status == statusRouterConnected;
 
   /// Returns true if this is a terminal state (success or error)
   bool get isTerminal => isSuccess || isError;
