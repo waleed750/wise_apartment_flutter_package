@@ -23,6 +23,8 @@
 #import <HXJBLESDK/HXBLEAddPasswordKeyParams.h>
 #import <HXJBLESDK/HXBLEAddOtherKeyParams.h>
 #import <HXJBLESDK/HXKeyModel.h>
+#import <HXJBLESDK/SHWiFiNetworkConfigReportParam.h>
+#import <HXJBLESDK/JQBLEDefines.h>
 
 // Channel names
 // Primary MethodChannel name (per requirement)
@@ -111,6 +113,14 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     self.deviceInfoManager = [[DeviceInfoManager alloc] init];
     self.lockManager = [[BleLockManager alloc] initWithBleClient:self.bleClient scanManager:self.bleScanManager];
     self.recordManager = [[LockRecordManager alloc] initWithBleClient:self.bleClient eventEmitter:self.eventEmitter];
+    
+    // Register WiFi network config notification observer
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleWiFiNetworkConfigNotification:)
+                                                 name:KSHNotificationWiFiNetworkConfig
+                                               object:nil];
+    NSLog(@"[WiseApartmentPlugin] WiFi network config notification observer registered");
+    
     NSLog(@"[WiseApartmentPlugin] All components setup complete");
 }
 
@@ -128,13 +138,82 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     // Clear event sink
     [self.eventEmitter clearEventSink];
 
-    // No per-plugin wifi observer to remove
+    // Remove WiFi network config observer
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:KSHNotificationWiFiNetworkConfig
+                                                  object:nil];
+    NSLog(@"[WiseApartmentPlugin] WiFi network config notification observer removed");
     
     // Nullify channels
     self.methodChannel = nil;
     self.legacyMethodChannel = nil;
     self.eventChannel = nil;
     NSLog(@"[WiseApartmentPlugin] Cleanup complete");
+}
+
+#pragma mark - WiFi Network Config Notification
+
+- (void)handleWiFiNetworkConfigNotification:(NSNotification *)notification {
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    NSLog(@"[WiseApartmentPlugin] WiFi Network Config Notification Received");
+    NSLog(@"[WiseApartmentPlugin] ========================================");
+    
+    id notificationObject = notification.object;
+    if (![notificationObject isKindOfClass:[SHWiFiNetworkConfigReportParam class]]) {
+        NSLog(@"[WiseApartmentPlugin] ✗ Unexpected notification object type: %@", [notificationObject class]);
+        return;
+    }
+    
+    SHWiFiNetworkConfigReportParam *param = (SHWiFiNetworkConfigReportParam *)notificationObject;
+    
+    int wifiStatus = param.wifiStatus;
+    NSString *rfModuleMac = param.rfModuleMac ?: @"";
+    NSString *lockMac = param.lockMac ?: @"";
+    
+    // Determine status message
+    NSString *statusMessage;
+    switch (wifiStatus) {
+        case 0x02:
+            statusMessage = @"Network distribution binding in progress";
+            break;
+        case 0x04:
+            statusMessage = @"WiFi module connected to router";
+            break;
+        case 0x05:
+            statusMessage = @"WiFi module connected to cloud (success)";
+            break;
+        case 0x06:
+            statusMessage = @"Incorrect password";
+            break;
+        case 0x07:
+            statusMessage = @"WiFi configuration timeout";
+            break;
+        case 0x08:
+            statusMessage = @"Device failed to connect to server";
+            break;
+        case 0x09:
+            statusMessage = @"Device not authorized";
+            break;
+        default:
+            statusMessage = [NSString stringWithFormat:@"Unknown status: 0x%02x", wifiStatus];
+            break;
+    }
+    
+    NSLog(@"[WiseApartmentPlugin] WiFi Status: 0x%02x - %@", wifiStatus, statusMessage);
+    NSLog(@"[WiseApartmentPlugin] RF Module MAC: %@", rfModuleMac);
+    NSLog(@"[WiseApartmentPlugin] Lock MAC: %@", lockMac);
+    
+    // Emit event to Flutter via EventChannel
+    NSDictionary *event = @{
+        @"type": @"wifiRegistration",
+        @"status": @(wifiStatus),
+        @"moduleMac": rfModuleMac,
+        @"lockMac": lockMac,
+        @"statusMessage": statusMessage
+    };
+    
+    [self.eventEmitter emitEvent:event];
+    NSLog(@"[WiseApartmentPlugin] WiFi registration event emitted to Flutter");
 }
 
 #pragma mark - FlutterStreamHandler (EventChannel)

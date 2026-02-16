@@ -79,6 +79,10 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Stream that emits system parameter responses from native as they arrive.
   Stream<Map<String, dynamic>> get getSysParamStream;
 
+  /// Stream that emits WiFi registration events from the device.
+  /// Events contain status codes and module/lock MAC addresses.
+  Stream<Map<String, dynamic>> get wifiRegistrationStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
 
   /// Start the native getSysParam stream. Emits events on `getSysParamStream`.

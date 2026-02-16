@@ -152,6 +152,26 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.getSysParamStream;
   }
 
+  /// Stream of WiFi registration status events from the device.
+  /// Emits events as the device progresses through WiFi configuration.
+  ///
+  /// Event format:
+  /// - type: 'wifiRegistration'
+  /// - status: int (0x02, 0x04, 0x05, 0x06, 0x07, etc.)
+  /// - statusMessage: String (human-readable status)
+  /// - moduleMac: String (RF module MAC address)
+  /// - lockMac: String (lock MAC address)
+  ///
+  /// Status codes:
+  /// - 0x02: Network distribution binding in progress
+  /// - 0x04: WiFi module connected to router
+  /// - 0x05: WiFi module connected to cloud (success)
+  /// - 0x06: Incorrect password
+  /// - 0x07: WiFi configuration timeout
+  Stream<Map<String, dynamic>> get wifiRegistrationStream {
+    return WiseApartmentPlatform.instance.wifiRegistrationStream;
+  }
+
   /// Start native sysParam stream for the provided auth/DNA map.
   Future<bool> startGetSysParamStream(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.startGetSysParamStream(auth);

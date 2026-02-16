@@ -32,6 +32,7 @@ import com.example.wise_apartment.utils.DeviceInfoManager;
 import com.example.wise_apartment.utils.LockRecordManager;
 import com.example.wise_apartment.utils.OneShotResult;
 import com.example.wise_apartment.utils.PluginUtils;
+import com.example.wise_apartment.utils.MyBleClient;
 
 /**
  * WiseApartmentPlugin
@@ -81,8 +82,58 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
   private void initClient() {
       if (bleClient == null) {
         try {
-          bleClient = new HxjBleClient(context);
-          Log.d(TAG, "HxjBleClient initialized");
+          // Use MyBleClient which handles WiFi registration events
+          bleClient = MyBleClient.getInstance(context);
+          Log.d(TAG, "MyBleClient initialized");
+          
+          // Register WiFi registration callback to emit events to Flutter
+          if (bleClient instanceof MyBleClient) {
+            ((MyBleClient) bleClient).setWifiRegistrationCallback(new MyBleClient.WifiRegistrationCallback() {
+              @Override
+              public void onWifiRegistrationEvent(final int status, final String moduleMac, final String lockMac) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      Map<String, Object> event = new java.util.HashMap<>();
+                      event.put("type", "wifiRegistration");
+                      event.put("status", status);
+                      event.put("moduleMac", moduleMac != null ? moduleMac : "");
+                      event.put("lockMac", lockMac != null ? lockMac : "");
+                      
+                      // Add status message for convenience
+                      String statusMessage;
+                      switch (status) {
+                        case 0x02:
+                          statusMessage = "Network distribution binding in progress";
+                          break;
+                        case 0x04:
+                          statusMessage = "WiFi module connected to router";
+                          break;
+                        case 0x05:
+                          statusMessage = "WiFi module connected to cloud (success)";
+                          break;
+                        case 0x06:
+                          statusMessage = "Incorrect password";
+                          break;
+                        case 0x07:
+                          statusMessage = "WiFi configuration timeout";
+                          break;
+                        default:
+                          statusMessage = "Unknown status: 0x" + Integer.toHexString(status);
+                          break;
+                      }
+                      event.put("statusMessage", statusMessage);
+                      
+                      Log.d(TAG, "Emitting wifiRegistration event: " + statusMessage);
+                      eventSink.success(event);
+                    }
+                  }
+                });
+              }
+            });
+          }
+          
           bleClient.setLinkCallBack(new LinkCallBack() {
             @Override
             public void onDeviceConnected(@NonNull BluetoothDevice device) {

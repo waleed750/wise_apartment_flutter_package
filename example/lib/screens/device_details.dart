@@ -8,6 +8,7 @@ import 'sync_loc_records.dart';
 import 'sync_keys_screen.dart';
 import 'dna_info_screen.dart';
 import 'add_lock_key_screen.dart';
+import 'wifi_registration_screen.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
 import '../src/config.dart';
@@ -485,6 +486,26 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                     );
                   },
                   child: const Text('Add Key'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final auth = widget.device.toMap();
+                    if (!mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => WifiRegistrationScreen(auth: auth),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.wifi_tethering),
+                  label: const Text('Test WiFi Registration Stream'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
 

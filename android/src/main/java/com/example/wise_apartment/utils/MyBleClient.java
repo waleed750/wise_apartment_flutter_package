@@ -20,6 +20,15 @@ import com.example.hxjblinklibrary.blinkble.utils.ByteUtil;
 public class MyBleClient extends HxjBleClient {
     private static final String TAG = "MyBleClient";
     private static MyBleClient sInstance;
+    private WifiRegistrationCallback wifiCallback;
+
+    public interface WifiRegistrationCallback {
+        void onWifiRegistrationEvent(int status, String moduleMac, String lockMac);
+    }
+
+    public void setWifiRegistrationCallback(WifiRegistrationCallback callback) {
+        this.wifiCallback = callback;
+    }
 
     public static MyBleClient getInstance(Context context) {
         if (sInstance == null) {
@@ -82,16 +91,38 @@ public class MyBleClient extends HxjBleClient {
                         break;
                     case 0x2D:
                         KeyEventRegWifi wifiReport = EventPostDataParser.parseWifiReg(substring);
-                        if (wifiReport.getWifiStatues() == 0x04) {
+                        int wifiStatus = wifiReport.getWifiStatues();
+                        if (wifiStatus == 0x02) {
+                            Log.d(TAG, "WiFi module network distribution binding in progress");
+                        } else if (wifiStatus == 0x04) {
                             Log.d(TAG, "WiFi module successfully connected to router");
-                        }else if (wifiReport.getWifiStatues() == 0x05) {
+                        } else if (wifiStatus == 0x05) {
                             Log.d(TAG, "WiFi module successfully connected to cloud");
-                        }else if (wifiReport.getWifiStatues() == 0x06) {
+                        } else if (wifiStatus == 0x06) {
                             Log.d(TAG, "Incorrect password");
-                        }else if (wifiReport.getWifiStatues() == 0x07) {
+                        } else if (wifiStatus == 0x07) {
                             Log.d(TAG, "WiFi configuration timeout");
                         }
-                        // Send network configuration result to the relevant page via EventBus or other means
+                        
+                        // Get module MAC - try to get from wifiReport object
+                        String moduleMac = "";
+                        try {
+                            // Try reflection to get ModuleMac field
+                            java.lang.reflect.Field moduleMacField = wifiReport.getClass().getDeclaredField("ModuleMac");
+                            moduleMacField.setAccessible(true);
+                            Object macValue = moduleMacField.get(wifiReport);
+                            if (macValue != null) {
+                                moduleMac = macValue.toString();
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "Could not get ModuleMac from wifiReport", e);
+                        }
+                        
+                        // Send event via callback if registered
+                        if (wifiCallback != null) {
+                            Log.d(TAG, "Emitting WiFi registration event: status=" + wifiStatus + ", moduleMac=" + moduleMac + ", lockMac=" + lockMac);
+                            wifiCallback.onWifiRegistrationEvent(wifiStatus, moduleMac, lockMac);
+                        }
                         break;
                 }
 

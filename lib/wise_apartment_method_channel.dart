@@ -61,6 +61,25 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _sysParamStream!;
   }
 
+  Stream<Map<String, dynamic>>? _wifiRegistrationStream;
+
+  @override
+  Stream<Map<String, dynamic>> get wifiRegistrationStream {
+    _wifiRegistrationStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'wifiRegistration') {
+          return m;
+        }
+        // ignore other event types
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _wifiRegistrationStream!;
+  }
+
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
     final dynamic mac = auth['mac'];
     if (mac is String && mac.isNotEmpty) {

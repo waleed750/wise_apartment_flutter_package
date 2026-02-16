@@ -144,6 +144,11 @@ class MockWiseApartmentPlatform
   Stream<Map<String, dynamic>> get syncLockRecordsStream {
     return const Stream<Map<String, dynamic>>.empty();
   }
+
+  @override
+  Stream<Map<String, dynamic>> get wifiRegistrationStream {
+    return Stream.value({});
+  }
 }
 
 void main() {
