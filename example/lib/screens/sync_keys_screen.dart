@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,6 +28,8 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
   List<Map<String, dynamic>> _partialKeys = [];
   int _chunksReceived = 0;
   String _statusMessage = '';
+  bool _togglingKey = false;
+  int? _togglingKeyIndex;
 
   // Controllers and storage for Add Key bottom sheet
   final _keyTypeController = TextEditingController();
@@ -328,6 +331,74 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     }
   }
 
+  Future<void> _toggleKeyEnabled(Map<String, dynamic> keyData, int index) async {
+    final keyType = keyData['keyType'] as int? ?? 0;
+    final currentValidNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
+    
+    // Determine new state: if currently enabled (>0), disable (0); if disabled, enable (255)
+    final newValidNum = currentValidNum > 0 ? 0 : 255;
+    final enabling = newValidNum > 0;
+
+    setState(() {
+      _togglingKey = true;
+      _togglingKeyIndex = index;
+    });
+
+    try {
+      final response = await _plugin.setKeyTypeEnabled(
+        auth: widget.auth,
+        keyTypeBitmask: keyType,
+        validNumber: newValidNum,
+      );
+
+      if (!mounted) return;
+
+      final success = response['success'] == true ||
+          response['isSuccessful'] == true ||
+          response['code'] == 0;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabling ? 'Key type enabled' : 'Key type disabled',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        // Refresh keys to get updated state
+        await _syncKeys();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to toggle key: ${response['message'] ?? response['ackMessage'] ?? response['code']}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error toggling key: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _togglingKey = false;
+          _togglingKeyIndex = null;
+        });
+      }
+    }
+  }
+
   Future<void> _showAddKeySheet() async {
     // populate defaults similar to AddKeyScreen
     final AddLockKeyActionModel defaults = AddLockKeyActionModel();
@@ -389,15 +460,17 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sync Lock Keys'),
-        actions: [
-          InkWell(onTap: _syncKeys, child: Icon(Icons.sync)),
-          SizedBox(width: 12),
-        ],
-      ),
-      body: Padding(
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Sync Lock Keys'),
+            actions: [
+              InkWell(onTap: _syncKeys, child: Icon(Icons.sync)),
+              SizedBox(width: 12),
+            ],
+          ),
+          body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -462,6 +535,8 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                         final pretty = const JsonEncoder.withIndent(
                           '  ',
                         ).convert(keyData);
+                        final validNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
+                        final isEnabled = validNum > 0;
 
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -472,7 +547,20 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                               'ID: ${keyData['lockKeyId'] ?? 'N/A'}',
                               style: const TextStyle(fontSize: 12),
                             ),
-                            trailing: PopupMenuButton<String>(
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Transform.scale(
+                                  scale: 0.8,
+                                  child: Switch(
+                                    value: isEnabled,
+                                    onChanged: _togglingKey ? null : (value) {
+                                      _toggleKeyEnabled(keyData, index);
+                                    },
+                                    activeColor: Colors.green,
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
                               onSelected: (value) async {
                                 if (value == 'edit') {
                                   await _editKey(keyData);
@@ -509,6 +597,8 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                                     ],
                                   ),
                                 ),
+                              ],
+                            ),
                               ],
                             ),
                             onTap: () async {
@@ -557,11 +647,45 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddKeySheet,
-        child: const Icon(Icons.add),
-      ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _showAddKeySheet,
+            child: const Icon(Icons.add),
+          ),
+        ),
+        // Blur overlay when toggling key
+        if (_togglingKey)
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(
+                child: Card(
+                  elevation: 8,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        Text(
+                          _togglingKeyIndex != null
+                              ? 'Toggling Key ${_togglingKeyIndex! + 1}...'
+                              : 'Toggling Key...',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

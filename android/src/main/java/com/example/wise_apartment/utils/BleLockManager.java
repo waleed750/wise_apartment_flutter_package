@@ -13,6 +13,7 @@ import com.example.hxjblinklibrary.blinkble.entity.reslut.AddLockKeyResult;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ChangeKeyPwdAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ModifyKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.EnableLockKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
@@ -1517,6 +1518,74 @@ public class BleLockManager {
             err.put("type", "sysParamError");
             err.put("message", t.getMessage());
             callback.onError(err);
+        }
+    }
+
+    /**
+     * Enable or disable key types on the lock.
+     * Uses operation mode 02 (by key type).
+     * - validNumber == 0 -> disable
+     * - validNumber != 0 -> enable
+     */
+    public void enableDisableKeyByType(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "[BleLockManager] enableDisableKeyByType called with args: " + args);
+        try {
+            EnableLockKeyAction action = new EnableLockKeyAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            // Extract parameters from args
+            int operationMod = getSafe("operationMod", () -> (Integer) args.get("operationMod"), 2);
+            int keyTypeOperMode = getSafe("keyTypeOperMode", () -> (Integer) args.get("keyTypeOperMode"), 2);
+            int keyType = getSafe("keyType", () -> (Integer) args.get("keyType"), 0);
+            int validNumber = getSafe("validNumber", () -> (Integer) args.get("validNumber"), 0);
+
+            action.setOperationMod(operationMod);
+            action.setKeyType(keyTypeOperMode);
+
+            // For operation mode 02 (by key type):
+            // - If validNumber == 0, we want to DISABLE the key types
+            // - If validNumber != 0, we want to ENABLE the key types
+            // The keyIdEn field is used as a bitmask in mode 02:
+            //   - Set bit = 1 means enable that type
+            //   - Set bit = 0 means disable that type
+            if (validNumber == 0) {
+                // Disable: set keyIdEn to 0 (all bits off)
+                action.setKeyIdEn(0);
+                Log.d(TAG, "[BleLockManager] Disabling key types: " + keyType);
+            } else {
+                // Enable: set keyIdEn to the keyType bitmask
+                action.setKeyIdEn(keyType);
+                Log.d(TAG, "[BleLockManager] Enabling key types: " + keyType + " with validNumber: " + validNumber);
+            }
+
+            bleClient.enableLockKey(action, new FunCallback() {
+                @Override
+                public void onResponse(Response response) {
+                    Log.d(TAG, "[BleLockManager] enableLockKey response: " + response);
+                    try {
+                        Map<String, Object> resMap = responseToMap(response, null);
+                        if (response != null && response.isSuccessful()) {
+                            resMap.put("success", true);
+                            postResultSuccess(result, resMap);
+                        } else {
+                            resMap.put("success", false);
+                            postResultError(result, "FAILED", "Code: " + (response != null ? response.code() : -1), resMap);
+                        }
+                    } catch (Throwable t) {
+                        Log.e(TAG, "[BleLockManager] Error processing enableLockKey response", t);
+                        postResultError(result, "ERROR", t.getMessage(), null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "[BleLockManager] enableLockKey failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "[BleLockManager] Exception calling enableLockKey", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
         }
     }
 }

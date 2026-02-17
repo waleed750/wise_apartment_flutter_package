@@ -1007,6 +1007,32 @@
     }
 }
 
+/**
+ * Enable or disable key types on the lock.
+ * 
+ * Note: iOS SDK does not support key type bitmask operations.
+ * The HXModifyKeyTimeParams expects individual key IDs, not type bitmasks.
+ * This method returns an error indicating the feature is not supported on iOS.
+ */
+- (void)enableDisableKeyByType:(NSDictionary *)args result:(FlutterResult)result {
+    NSLog(@"[BleLockManager] enableDisableKeyByType called with args: %@", args);
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    
+    // iOS SDK does not support key type bitmask operations
+    // HXModifyKeyTimeParams requires individual key IDs, not type bitmasks
+    NSDictionary *errorResponse = @{
+        @"success": @NO,
+        @"code": @(-1),
+        @"message": @"KEY_TYPE_NOT_SUPPORTED_ON_IOS",
+        @"ackMessage": @"iOS SDK does not support enable/disable by key type bitmask. Use individual key ID operations instead.",
+        @"isSuccessful": @NO,
+        @"isError": @YES
+    };
+    
+    NSLog(@"[BleLockManager] enableDisableKeyByType not supported on iOS - returning error");
+    [one error:@"NOT_SUPPORTED" message:@"KEY_TYPE_NOT_SUPPORTED_ON_IOS" details:errorResponse];
+}
+
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"getDna" one:one]) return;

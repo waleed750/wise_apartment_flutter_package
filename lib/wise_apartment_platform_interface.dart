@@ -116,4 +116,14 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Retrieve system parameters from the lock (SysParamResult).
   /// Returns a Map containing the response metadata and a `body` map of fields.
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth);
+
+  /// Enable or disable key types on the lock using operation mode 02 (by key type).
+  /// `auth` contains DNA/auth fields required by the native SDK.
+  /// `keyTypeBitmask` is the bitmask of key types to enable/disable.
+  /// `validNumber` determines enable/disable: 0 = disable, 1-254 = enable with count, 255 = unlimited.
+  Future<Map<String, dynamic>> setKeyTypeEnabled({
+    required Map<String, dynamic> auth,
+    required int keyTypeBitmask,
+    required int validNumber,
+  });
 }

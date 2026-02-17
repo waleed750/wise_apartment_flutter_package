@@ -323,4 +323,27 @@ class WiseApartment {
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.getSysParam(auth);
   }
+
+  /// Enable or disable key types on the lock.
+  /// Uses operation mode 02 (by key type) to enable/disable multiple key types at once.
+  /// `auth` is the DNA/auth map required by native SDKs.
+  /// `keyTypeBitmask` selects which key types to affect (01=Fingerprint, 02=Password, 04=Card, etc).
+  /// `validNumber`: 0 = disable, 1-254 = enable with usage count, 255 = unlimited.
+  Future<Map<String, dynamic>> setKeyTypeEnabled({
+    required Map<String, dynamic> auth,
+    required int keyTypeBitmask,
+    required int validNumber,
+  }) {
+    if (keyTypeBitmask <= 0) {
+      throw ArgumentError('keyTypeBitmask must be positive');
+    }
+    if (validNumber < 0 || validNumber > 255) {
+      throw ArgumentError('validNumber must be 0-255');
+    }
+    return WiseApartmentPlatform.instance.setKeyTypeEnabled(
+      auth: auth,
+      keyTypeBitmask: keyTypeBitmask,
+      validNumber: validNumber,
+    );
+  }
 }
