@@ -337,7 +337,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"modifyLockKey" isEqualToString:method]) {
         [self handleModifyLockKey:args result:result];
     }
-    else if ([@"enableDisableKeyByType" isEqualToString:method]) {
+    else if ([@"enableLockKey" isEqualToString:method]) {
         [self handleEnableDisableKeyByType:args result:result];
     }
     else if ([@"getSysParam" isEqualToString:method]) {

@@ -1044,6 +1044,7 @@
     int lockKeyId = [PluginUtils intFromArgs:args key:@"keyIdEn" defaultValue:0];
     int userId = [PluginUtils intFromArgs:args key:@"userId" defaultValue:0];
 
+
     // Create HXSetKeyEnableParams
     HXSetKeyEnableParams *params = [[HXSetKeyEnableParams alloc] init];
     params.lockMac = mac;
@@ -1076,7 +1077,7 @@
     @try {
         [HXBluetoothLockHelper setKeyEnable:params completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
             @try {
-                [weakSelf.bleClient disConnectBle:nil];
+//                [weakSelf.bleClient disConnectBle:nil];
 
                 NSDictionary *response = [weakSelf responseMapWithCode:statusCode
                                                                message:reason

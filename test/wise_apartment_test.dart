@@ -174,6 +174,24 @@ class MockWiseApartmentPlatform
   ) {
     return Future.value({});
   }
+  
+  @override
+  Future<Map<String, dynamic>> enableKeyById({required Map<String, dynamic> auth, required int lockKeyId, required int keyType, required int userId, required bool enabled}) {
+    // TODO: implement enableKeyById
+    throw UnimplementedError();
+  }
+  
+  @override
+  Future<Map<String, dynamic>> enableKeyByType({required Map<String, dynamic> auth, required int keyTypeBitmask, required bool enabled}) {
+    // TODO: implement enableKeyByType
+    throw UnimplementedError();
+  }
+  
+  @override
+  Future<Map<String, dynamic>> enableKeyByUserId({required Map<String, dynamic> auth, required int userId, required bool enabled}) {
+    // TODO: implement enableKeyByUserId
+    throw UnimplementedError();
+  }
 }
 
 void main() {

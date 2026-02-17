@@ -638,8 +638,10 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }) async {
     final args = Map<String, dynamic>.from(auth);
     args['operationMod'] = 1; // Mode 01: by key ID
+    args['keyIdOperMode'] = 1; // Explicitly set keyIdOperMode to 1
     args['lockKeyId'] = lockKeyId;
-    args['keyIdEn'] = lockKeyId;
+    // According to spec for Mode != 02: keyIdEn is 1 (Enable) or 0 (Disable)
+    args['keyIdEn'] = enabled ? 1 : 0;
     args['keyType'] = keyType;
     args['userId'] = userId;
     args['validNumber'] = enabled ? 255 : 0;
@@ -667,7 +669,21 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     args['operationMod'] = 2; // Mode 02: by key type
     args['keyTypeOperMode'] = 2;
     args['keyType'] = keyTypeBitmask;
+    // According to spec for Mode = 02: keyIdEn uses the bitmask itself?
+    // "enabled and disabled, and the corresponding bit fields are: 0: disable, 1: enable"
+    // The previous implementation used the bitmask if enabling, or 0 if disabling.
+    // If we want to disable specific types, simply passing 0 might disable ALL?
+    // Or we should pass the mask of types to disable?
+    // Let's assume the intention is to apply the state to the types in the mask.
+    // If enabled=true, keyIdEn = mask (bits set to 1).
+    // If enabled=false, keyIdEn = 0 (bits set to 0)?
+    // Disabling specific types in a bitmask usually implies those bits are 0.
+    // But if we pass 0 for the whole field, it disables everything?
+    // The previous logic `enabled ? keyTypeBitmask : 0` seems safer if we assume
+    // the command sets the absolute state of the mask.
     args['keyIdEn'] = enabled ? keyTypeBitmask : 0;
+
+    // validNumber logic is kept consistent
     args['validNumber'] = enabled ? 255 : 0;
 
     try {
@@ -691,8 +707,11 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }) async {
     final args = Map<String, dynamic>.from(auth);
     args['operationMod'] = 3; // Mode 03: by user/key group ID
+    args['appUserIdOperMode'] = 3; // Explicitly set appUserIdOperMode to 3
     args['userId'] = userId;
     args['keyGroupId'] = userId;
+    // According to spec for Mode != 02: keyIdEn is 1 (Enable) or 0 (Disable)
+    args['keyIdEn'] = enabled ? 1 : 0;
     args['validNumber'] = enabled ? 255 : 0;
 
     try {

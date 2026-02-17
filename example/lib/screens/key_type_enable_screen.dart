@@ -19,7 +19,6 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
   // Tab 1: By Key ID
   final _lockKeyIdController = TextEditingController();
   final _keyTypeByIdController = TextEditingController();
-  final _userIdByIdController = TextEditingController(text: '0');
   bool _isEnabledById = true;
 
   // Tab 2: By Key Type
@@ -31,6 +30,7 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
   bool _isEnabledByUserId = true;
 
   @override
+
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
@@ -41,13 +41,13 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
     _tabController.dispose();
     _lockKeyIdController.dispose();
     _keyTypeByIdController.dispose();
-    _userIdByIdController.dispose();
     _keyTypeBitmaskController.dispose();
     _userIdController.dispose();
     super.dispose();
   }
 
-  Future<void> _applyById() async {
+  Future<void> _applyById(bool enabling) async {
+    FocusScope.of(context).unfocus();
     if (_processing) return;
 
     final lockKeyId = int.tryParse(_lockKeyIdController.text.trim());
@@ -55,14 +55,14 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
       _showError('Lock Key ID must be a non-negative number');
       return;
     }
-
+    // Parse Key Type (required for OperMode 01). User ID is optional here.
     final keyType = int.tryParse(_keyTypeByIdController.text.trim());
     if (keyType == null || keyType < 0) {
       _showError('Key Type must be a non-negative number');
       return;
     }
 
-    final userId = int.tryParse(_userIdByIdController.text.trim()) ?? 0;
+    final userId = 0;
 
     setState(() => _processing = true);
 
@@ -72,14 +72,14 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
         lockKeyId: lockKeyId,
         keyType: keyType,
         userId: userId,
-        enabled: _isEnabledById,
+        enabled: enabling,
       );
 
       if (!mounted) return;
 
       if (_isSuccess(response)) {
         _showSuccess(
-          _isEnabledById
+          enabling
               ? 'Key ID $lockKeyId enabled successfully'
               : 'Key ID $lockKeyId disabled successfully',
         );
@@ -94,7 +94,8 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
     }
   }
 
-  Future<void> _applyByType() async {
+  Future<void> _applyByType(bool enabling) async {
+    FocusScope.of(context).unfocus();
     if (_processing) return;
 
     final keyTypeBitmask = int.tryParse(_keyTypeBitmaskController.text.trim());
@@ -109,14 +110,14 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
       final response = await _plugin.enableKeyByType(
         auth: widget.auth,
         keyTypeBitmask: keyTypeBitmask,
-        enabled: _isEnabledByType,
+        enabled: enabling,
       );
 
       if (!mounted) return;
 
       if (_isSuccess(response)) {
         _showSuccess(
-          _isEnabledByType
+          enabling
               ? 'Key type(s) enabled successfully'
               : 'Key type(s) disabled successfully',
         );
@@ -131,7 +132,8 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
     }
   }
 
-  Future<void> _applyByUserId() async {
+  Future<void> _applyByUserId(bool enabling) async {
+    FocusScope.of(context).unfocus();
     if (_processing) return;
 
     final userId = int.tryParse(_userIdController.text.trim());
@@ -146,14 +148,14 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
       final response = await _plugin.enableKeyByUserId(
         auth: widget.auth,
         userId: userId,
-        enabled: _isEnabledByUserId,
+        enabled: enabling,
       );
 
       if (!mounted) return;
 
       if (_isSuccess(response)) {
         _showSuccess(
-          _isEnabledByUserId
+          enabling
               ? 'User ID $userId keys enabled successfully'
               : 'User ID $userId keys disabled successfully',
         );
@@ -244,42 +246,42 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _userIdByIdController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: 'User ID',
-              border: OutlineInputBorder(),
-              helperText: 'User/Key Group ID (optional, default: 0)',
-            ),
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Enabled'),
-            subtitle: Text(
-              _isEnabledById ? 'Key will be enabled' : 'Key will be disabled',
-            ),
-            value: _isEnabledById,
-            onChanged: (value) {
-              setState(() => _isEnabledById = value);
-            },
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _processing ? null : _applyById,
-            icon: _processing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check),
-            label: const Text('Apply'),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyById(true),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Enable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyById(false),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Disable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -342,33 +344,42 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
             ),
           ),
           const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Enabled'),
-            subtitle: Text(
-              _isEnabledByType
-                  ? 'Key type(s) will be enabled'
-                  : 'Key type(s) will be disabled',
-            ),
-            value: _isEnabledByType,
-            onChanged: (value) {
-              setState(() => _isEnabledByType = value);
-            },
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _processing ? null : _applyByType,
-            icon: _processing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check),
-            label: const Text('Apply'),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyByType(true),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Enable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyByType(false),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Disable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -416,33 +427,42 @@ class _KeyTypeEnableScreenState extends State<KeyTypeEnableScreen>
             ),
           ),
           const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Enabled'),
-            subtitle: Text(
-              _isEnabledByUserId
-                  ? 'All user keys will be enabled'
-                  : 'All user keys will be disabled',
-            ),
-            value: _isEnabledByUserId,
-            onChanged: (value) {
-              setState(() => _isEnabledByUserId = value);
-            },
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _processing ? null : _applyByUserId,
-            icon: _processing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.check),
-            label: const Text('Apply'),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyByUserId(true),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Enable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _processing ? null : () => _applyByUserId(false),
+                  child: _processing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Disable'),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
