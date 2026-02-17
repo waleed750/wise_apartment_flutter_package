@@ -324,51 +324,79 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.getSysParam(auth);
   }
 
-  /// Enable or disable key types on the lock.
-  /// Uses operation mode 02 (by key type) to enable/disable multiple key types at once.
+  /// Enable or disable an individual key by its key ID (Operation Mode 1).
+  /// This is the most specific way to enable/disable a single key.
+  ///
   /// `auth` is the DNA/auth map required by native SDKs.
-  /// `keyTypeBitmask` selects which key types to affect (01=Fingerprint, 02=Password, 04=Card, etc).
-  /// `validNumber`: 0 = disable, 1-254 = enable with usage count, 255 = unlimited.
-  Future<Map<String, dynamic>> setKeyTypeEnabled({
+  /// `lockKeyId` is the specific key ID to enable/disable.
+  /// `keyType` is the type of key (01=Fingerprint, 02=Password, 04=Card, etc).
+  /// `userId` is the user/key group ID associated with the key (optional, defaults to 0).
+  /// `enabled` true to enable, false to disable.
+  Future<Map<String, dynamic>> enableKeyById({
+    required Map<String, dynamic> auth,
+    required int lockKeyId,
+    required int keyType,
+    int userId = 0,
+    required bool enabled,
+  }) {
+    if (lockKeyId < 0) {
+      throw ArgumentError('lockKeyId must be non-negative');
+    }
+    return WiseApartmentPlatform.instance.enableKeyById(
+      auth: auth,
+      lockKeyId: lockKeyId,
+      keyType: keyType,
+      userId: userId,
+      enabled: enabled,
+    );
+  }
+
+  /// Enable or disable keys by their type (Operation Mode 2).
+  /// This affects all keys of the specified type(s).
+  ///
+  /// `auth` is the DNA/auth map required by native SDKs.
+  /// `keyTypeBitmask` selects which key types to affect:
+  ///   - 01 (0x01): Fingerprint
+  ///   - 02 (0x02): Password
+  ///   - 04 (0x04): Card
+  ///   - 08 (0x08): Remote control
+  ///   - 64 (0x40): App temporary password
+  ///   - 128 (0x80): App key
+  ///   - 255 (0xFF): All types
+  /// `enabled` true to enable, false to disable.
+  Future<Map<String, dynamic>> enableKeyByType({
     required Map<String, dynamic> auth,
     required int keyTypeBitmask,
-    required int validNumber,
+    required bool enabled,
   }) {
     if (keyTypeBitmask <= 0) {
       throw ArgumentError('keyTypeBitmask must be positive');
     }
-    if (validNumber < 0 || validNumber > 255) {
-      throw ArgumentError('validNumber must be 0-255');
-    }
-    return WiseApartmentPlatform.instance.setKeyTypeEnabled(
+    return WiseApartmentPlatform.instance.enableKeyByType(
       auth: auth,
       keyTypeBitmask: keyTypeBitmask,
-      validNumber: validNumber,
+      enabled: enabled,
     );
   }
 
-  /// Enable or disable an individual key by its ID.
+  /// Enable or disable all keys for a specific user/key group (Operation Mode 3).
+  /// This affects all keys belonging to a user.
+  ///
   /// `auth` is the DNA/auth map required by native SDKs.
-  /// `lockKeyId` is the key ID to enable/disable.
-  /// `userId` is the user ID associated with the key.
-  /// `keyType` is the type of key (01=Fingerprint, 02=Password, 04=Card, etc).
-  /// `validNumber`: 0 = disable, 1-254 = enable with usage count, 255 = unlimited.
-  Future<Map<String, dynamic>> setKeyEnabledById({
+  /// `userId` is the user ID / key group ID.
+  /// `enabled` true to enable, false to disable.
+  Future<Map<String, dynamic>> enableKeyByUserId({
     required Map<String, dynamic> auth,
-    required int lockKeyId,
     required int userId,
-    required int keyType,
-    required int validNumber,
+    required bool enabled,
   }) {
-    if (validNumber < 0 || validNumber > 255) {
-      throw ArgumentError('validNumber must be 0-255');
+    if (userId < 0) {
+      throw ArgumentError('userId must be non-negative');
     }
-    return WiseApartmentPlatform.instance.setKeyEnabledById(
+    return WiseApartmentPlatform.instance.enableKeyByUserId(
       auth: auth,
-      lockKeyId: lockKeyId,
       userId: userId,
-      keyType: keyType,
-      validNumber: validNumber,
+      enabled: enabled,
     );
   }
 }

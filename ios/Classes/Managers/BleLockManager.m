@@ -7,6 +7,7 @@
 #import <HXJBLESDK/HXBLEDeviceStatus.h>
 #import <HXJBLESDK/HXKeyModel.h>
 #import <HXJBLESDK/HXModifyKeyTimeParams.h>
+#import <HXJBLESDK/HXSetKeyEnableParams.h>
 
 #import "BleScanManager.h"
 #import "HxjBleClient.h"
@@ -1009,29 +1010,99 @@
 }
 
 /**
- * Enable or disable key types on the lock.
- * 
- * Note: iOS SDK does not support key type bitmask operations.
- * The HXModifyKeyTimeParams expects individual key IDs, not type bitmasks.
- * This method returns an error indicating the feature is not supported on iOS.
+ * Enable or disable keys on the lock.
+ * Supports operation by key ID (mode 1) or by key type (mode 2).
+ * Uses iOS SDK method: setKeyEnable:completionBlock:
  */
-- (void)enableDisableKeyByType:(NSDictionary *)args result:(FlutterResult)result {
-    NSLog(@"[BleLockManager] enableDisableKeyByType called with args: %@", args);
+- (void)enableLockKey:(NSDictionary *)args result:(FlutterResult)result {
+    NSLog(@"[BleLockManager] enableLockKey called with args: %@", args);
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     
-    // iOS SDK does not support key type bitmask operations
-    // HXModifyKeyTimeParams requires individual key IDs, not type bitmasks
-    NSDictionary *errorResponse = @{
-        @"success": @NO,
-        @"code": @(-1),
-        @"message": @"KEY_TYPE_NOT_SUPPORTED_ON_IOS",
-        @"ackMessage": @"iOS SDK does not support enable/disable by key type bitmask. Use individual key ID operations instead.",
-        @"isSuccessful": @NO,
-        @"isError": @YES
-    };
-    
-    NSLog(@"[BleLockManager] enableDisableKeyByType not supported on iOS - returning error");
-    [one error:@"NOT_SUPPORTED" message:@"KEY_TYPE_NOT_SUPPORTED_ON_IOS" details:errorResponse];
+    if (![self validateArgs:args method:@"enableLockKey" one:one]) return;
+
+    // Initialize addHelper if needed
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [one error:@"ERROR" message:@"mac is required" details:nil];
+        return;
+    }
+
+    // Parse parameters from args
+    int operationMod = [PluginUtils intFromArgs:args key:@"operationMod" defaultValue:1];
+    int keyType = [PluginUtils intFromArgs:args key:@"keyType" defaultValue:0];
+    int validNumber = [PluginUtils intFromArgs:args key:@"validNumber" defaultValue:0];
+    int lockKeyId = [PluginUtils intFromArgs:args key:@"keyIdEn" defaultValue:0];
+    int userId = [PluginUtils intFromArgs:args key:@"userId" defaultValue:0];
+
+    // Create HXSetKeyEnableParams
+    HXSetKeyEnableParams *params = [[HXSetKeyEnableParams alloc] init];
+    params.lockMac = mac;
+    params.operMode = operationMod;
+
+    // Configure parameters based on operation mode
+    if (operationMod == 1) {
+        // Mode 1: By key ID
+        params.lockKeyId = lockKeyId;
+        // enable: 1 = enable, 0 = disable
+        params.enable = (validNumber > 0) ? 1 : 0;
+        NSLog(@"[BleLockManager] Mode 1 (by key ID): lockKeyId=%d, enable=%d", lockKeyId, params.enable);
+    } else if (operationMod == 2) {
+        // Mode 2: By key type
+        params.keyTypes = (KSHKeyType)keyType;
+        // enable: bitmask of types to enable, 0 = disable all
+        params.enable = (validNumber > 0) ? keyType : 0;
+        NSLog(@"[BleLockManager] Mode 2 (by key type): keyTypes=%d, enable=%d", keyType, params.enable);
+    } else if (operationMod == 3) {
+        // Mode 3: By user/key group ID
+        params.keyGroupId = userId;
+        params.enable = (validNumber > 0) ? 1 : 0;
+        NSLog(@"[BleLockManager] Mode 3 (by key group): keyGroupId=%d, enable=%d", userId, params.enable);
+    } else {
+        [one error:@"INVALID_ARGUMENT" message:@"Invalid operationMod" details:nil];
+        return;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    @try {
+        [HXBluetoothLockHelper setKeyEnable:params completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            @try {
+                [weakSelf.bleClient disConnectBle:nil];
+
+                NSDictionary *response = [weakSelf responseMapWithCode:statusCode
+                                                               message:reason
+                                                               lockMac:mac
+                                                                  body:nil];
+                
+                if (statusCode == KSHStatusCode_Success) {
+                    NSMutableDictionary *successResponse = [response mutableCopy];
+                    successResponse[@"success"] = @YES;
+                    NSLog(@"[BleLockManager] enableLockKey succeeded");
+                    [one success:successResponse];
+                } else {
+                    NSLog(@"[BleLockManager] enableLockKey failed - code: %d, reason: %@", (int)statusCode, reason);
+                    [one error:@"FAILED" message:reason ?: @"Failed to enable/disable key" details:response];
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[BleLockManager] Exception in enableLockKey callback: %@", exception);
+                [weakSelf.bleClient disConnectBle:nil];
+                [one error:@"ERROR" message:exception.reason ?: @"Exception in enableLockKey" details:nil];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling enableLockKey: %@", exception);
+        [self.bleClient disConnectBle:nil];
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling enableLockKey" details:nil];
+    }
 }
 
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result {

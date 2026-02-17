@@ -117,27 +117,26 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Returns a Map containing the response metadata and a `body` map of fields.
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth);
 
-  /// Enable or disable key types on the lock using operation mode 02 (by key type).
-  /// `auth` contains DNA/auth fields required by the native SDK.
-  /// `keyTypeBitmask` is the bitmask of key types to enable/disable.
-  /// `validNumber` determines enable/disable: 0 = disable, 1-254 = enable with count, 255 = unlimited.
-  Future<Map<String, dynamic>> setKeyTypeEnabled({
-    required Map<String, dynamic> auth,
-    required int keyTypeBitmask,
-    required int validNumber,
-  });
-
-  /// Enable or disable an individual key by its ID.
-  /// `auth` contains DNA/auth fields required by the native SDK.
-  /// `lockKeyId` is the key ID to enable/disable.
-  /// `userId` is the user ID associated with the key.
-  /// `keyType` is the type of key.
-  /// `validNumber` determines enable/disable: 0 = disable, 1-254 = enable with count, 255 = unlimited.
-  Future<Map<String, dynamic>> setKeyEnabledById({
+  /// Enable or disable an individual key by its key ID (Operation Mode 1).
+  Future<Map<String, dynamic>> enableKeyById({
     required Map<String, dynamic> auth,
     required int lockKeyId,
-    required int userId,
     required int keyType,
-    required int validNumber,
+    required int userId,
+    required bool enabled,
+  });
+
+  /// Enable or disable keys by their type (Operation Mode 2).
+  Future<Map<String, dynamic>> enableKeyByType({
+    required Map<String, dynamic> auth,
+    required int keyTypeBitmask,
+    required bool enabled,
+  });
+
+  /// Enable or disable all keys for a specific user/key group (Operation Mode 3).
+  Future<Map<String, dynamic>> enableKeyByUserId({
+    required Map<String, dynamic> auth,
+    required int userId,
+    required bool enabled,
   });
 }

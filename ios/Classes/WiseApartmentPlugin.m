@@ -1118,7 +1118,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         result(@{@"success": @NO, @"message": @"Invalid parameters"});
         return;
     }
-    [self.lockManager enableDisableKeyByType:params result:result];
+    [self.lockManager enableLockKey:params result:result];
 }
 
 - (void)handleSyncLockTime:(id)args result:(FlutterResult)result {

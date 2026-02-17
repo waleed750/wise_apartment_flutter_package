@@ -343,9 +343,8 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     final currentValidNum =
         keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
 
-    // Determine new state: if currently enabled (>0), disable (0); if disabled, enable (255)
-    final newValidNum = currentValidNum > 0 ? 0 : 255;
-    final enabling = newValidNum > 0;
+    // Determine new state: if currently enabled (>0), disable; if disabled, enable
+    final enabling = currentValidNum == 0;
 
     setState(() {
       _togglingKey = true;
@@ -353,12 +352,12 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     });
 
     try {
-      final response = await _plugin.setKeyEnabledById(
+      final response = await _plugin.enableKeyById(
         auth: widget.auth,
         lockKeyId: lockKeyId,
         userId: userId,
         keyType: keyType,
-        validNumber: newValidNum,
+        enabled: enabling,
       );
 
       if (!mounted) return;

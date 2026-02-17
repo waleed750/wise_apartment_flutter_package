@@ -565,6 +565,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         }
         break;
       case "enableDisableKeyByType":
+      case "enableLockKey":
         if (lockManager != null) {
           lockManager.enableDisableKeyByType((Map<String, Object>) call.arguments, safeResult);
         } else {

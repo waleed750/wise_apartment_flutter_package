@@ -629,22 +629,25 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> setKeyTypeEnabled({
+  Future<Map<String, dynamic>> enableKeyById({
     required Map<String, dynamic> auth,
-    required int keyTypeBitmask,
-    required int validNumber,
+    required int lockKeyId,
+    required int keyType,
+    required int userId,
+    required bool enabled,
   }) async {
     final args = Map<String, dynamic>.from(auth);
-    args['operationMod'] = 2; // Mode 02: by key type
-    args['keyTypeOperMode'] = 2; // Operation mode 2
-    args['keyType'] = keyTypeBitmask;
-    args['validNumber'] = validNumber;
+    args['operationMod'] = 1; // Mode 01: by key ID
+    args['lockKeyId'] = lockKeyId;
+    args['keyIdEn'] = lockKeyId;
+    args['keyType'] = keyType;
+    args['userId'] = userId;
+    args['validNumber'] = enabled ? 255 : 0;
 
     try {
       final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('enableDisableKeyByType', args);
+          .invokeMapMethod<String, dynamic>('enableLockKey', args);
       if (result == null) return <String, dynamic>{};
-      // Persist status info if present
       try {
         WiseStatusStore.setFromMap(result);
       } catch (_) {}
@@ -655,25 +658,47 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   }
 
   @override
-  Future<Map<String, dynamic>> setKeyEnabledById({
+  Future<Map<String, dynamic>> enableKeyByType({
     required Map<String, dynamic> auth,
-    required int lockKeyId,
-    required int userId,
-    required int keyType,
-    required int validNumber,
+    required int keyTypeBitmask,
+    required bool enabled,
   }) async {
     final args = Map<String, dynamic>.from(auth);
-    args['operationMod'] = 1; // Mode 01: by key ID
-    args['keyType'] = keyType;
-    args['keyIdEn'] = lockKeyId;
-    args['userId'] = userId;
-    args['validNumber'] = validNumber;
+    args['operationMod'] = 2; // Mode 02: by key type
+    args['keyTypeOperMode'] = 2;
+    args['keyType'] = keyTypeBitmask;
+    args['keyIdEn'] = enabled ? keyTypeBitmask : 0;
+    args['validNumber'] = enabled ? 255 : 0;
 
     try {
       final Map<String, dynamic>? result = await methodChannel
-          .invokeMapMethod<String, dynamic>('enableDisableKeyByType', args);
+          .invokeMapMethod<String, dynamic>('enableLockKey', args);
       if (result == null) return <String, dynamic>{};
-      // Persist status info if present
+      try {
+        WiseStatusStore.setFromMap(result);
+      } catch (_) {}
+      return result;
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> enableKeyByUserId({
+    required Map<String, dynamic> auth,
+    required int userId,
+    required bool enabled,
+  }) async {
+    final args = Map<String, dynamic>.from(auth);
+    args['operationMod'] = 3; // Mode 03: by user/key group ID
+    args['userId'] = userId;
+    args['keyGroupId'] = userId;
+    args['validNumber'] = enabled ? 255 : 0;
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('enableLockKey', args);
+      if (result == null) return <String, dynamic>{};
       try {
         WiseStatusStore.setFromMap(result);
       } catch (_) {}
