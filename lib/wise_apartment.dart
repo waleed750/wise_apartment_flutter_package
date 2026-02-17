@@ -141,6 +141,52 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.deleteLockKey(auth, params);
   }
 
+  /// Change/modify a key password on the lock.
+  /// Performs Dart-side validation before calling native platform code.
+  /// `auth` is the DNA/auth map required by native SDKs.
+  /// `params` can be a Map with keys: `status` (int, default 0),
+  /// `lockKeyId` (int), `oldPassword` (String), `newPassword` (String).
+  Future<Map<String, dynamic>> changeLockKeyPwd(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) {
+    final args = Map<String, dynamic>.from(auth);
+
+    Map<String, dynamic> actionMap;
+    if (params is Map<String, dynamic>) {
+      actionMap = Map<String, dynamic>.from(params);
+    } else {
+      try {
+        // attempt to call toMap if provided by a model
+        actionMap = Map<String, dynamic>.from((params as dynamic).toMap());
+      } catch (_) {
+        throw ArgumentError('params must be a Map or ChangeKeyPwdActionModel');
+      }
+    }
+
+    // Basic validation
+    final lpId = actionMap['lockKeyId'];
+    final oldPwd = actionMap['oldPassword']?.toString() ?? '';
+    final newPwd = actionMap['newPassword']?.toString() ?? '';
+
+    if (lpId == null ||
+        (lpId is! int && int.tryParse(lpId.toString()) == null)) {
+      throw ArgumentError('lockKeyId is required and must be an int');
+    }
+
+    if (oldPwd.isEmpty) throw ArgumentError('oldPassword is required');
+
+    if (!RegExp(r'^\d{6,12}\$').hasMatch(newPwd)) {
+      throw ArgumentError('newPassword must be 6-12 digits');
+    }
+
+    if (oldPwd == newPwd)
+      throw ArgumentError('newPassword must differ from oldPassword');
+
+    args['action'] = actionMap;
+    return WiseApartmentPlatform.instance.changeLockKeyPwd(args, actionMap);
+  }
+
   /// Synchronize keys on the lock. Returns a Map describing the sync result.
   Future<Map<String, dynamic>> syncLockKey(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.syncLockKey(auth);

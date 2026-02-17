@@ -8,8 +8,10 @@ import java.util.Map;
 import io.flutter.plugin.common.MethodChannel.Result;
 
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.AddLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.DelLockKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.AddLockKeyResult;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.ChangeKeyPwdAction;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
@@ -356,6 +358,69 @@ public class BleLockManager {
                 result.error("ERROR", t.getMessage(), null);
             }
         });
+    }
+
+    public void changeLockKeyPwd(Map<String, Object> arguments, final Result result) {
+        if (bleClient == null) {
+            postResultError(result, "INIT_ERROR", "BLE client is null", null);
+            return;
+        }
+
+        try {
+            Map<String, Object> actionMap = (Map<String, Object>) arguments.get("action");
+            if (actionMap == null) {
+                postResultError(result, "INVALID_ARGUMENT", "Missing 'action' map", null);
+                return;
+            }
+
+            ChangeKeyPwdAction action = new ChangeKeyPwdAction();
+            action.setStatus(0);
+
+            int lockKeyId = parseInt(actionMap.get("lockKeyId"), -1);
+            if (lockKeyId == -1) {
+                postResultError(result, "INVALID_ARGUMENT", "Invalid lockKeyId", null);
+                return;
+            }
+            action.setLockKeyId(lockKeyId);
+
+            String oldPassword = parseString(actionMap.get("oldPassword"), "");
+            String newPassword = parseString(actionMap.get("newPassword"), "");
+
+            if (oldPassword.isEmpty() || newPassword.isEmpty()) {
+                postResultError(result, "INVALID_ARGUMENT", "Missing passwords", null);
+                return;
+            }
+
+            action.setOldPassword(oldPassword);
+            action.setNewPassword(newPassword);
+
+            action.setBaseAuthAction(PluginUtils.createAuthAction(arguments));
+
+
+            bleClient.changeLockKeyPwd(action, new FunCallback<Object>() {
+                 @Override
+                 public void onResponse(Response<Object> response) {
+                     if (response.isSuccessful()) {
+                        result.success(responseToMap(response, null));
+                     } else {
+                        // Include numeric code and ackMessage in details
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("code", response.code());
+                        details.put("ackMessage", ackMessageForCode(response.code()));
+                        result.error("FAILED", "Code: " + response.code(), details);
+                     }
+                 }
+
+                 @Override
+                 public void onFailure(Throwable t) {
+                     result.error("ERROR", t.getMessage(), null);
+                 }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "changeLockKeyPwd failed", e);
+            postResultError(result, "CHANGE_KEY_PWD_ERROR", e.getMessage(), null);
+        }
     }
 
     public void deleteLock(Map<String, Object> args, final Result result) {
@@ -978,9 +1043,9 @@ public class BleLockManager {
             // Log the fully built action for debugging
             try { Log.d(TAG, "deleteLockKey action built: " + objectToMap(action)); } catch (Throwable ignored) {}
 
-            bleClient.delLockKey(action, new FunCallback<ActionResultModel>() {
+            bleClient.delLockKey(action, new FunCallback() {
                 @Override
-                public void onResponse(Response<ActionResultModel> response) {
+                public void onResponse(Response response) {
                     if (response.isSuccessful() && response.body() != null) {
                         try {
                             Map<String, Object> bodyMap = objectToMap(response.body());

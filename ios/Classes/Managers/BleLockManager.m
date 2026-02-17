@@ -843,6 +843,72 @@
     }
 }
 
+- (void)changeLockKeyPwd:(NSDictionary *)args result:(FlutterResult)result {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    if (![self validateArgs:args method:@"changeLockKeyPwd" one:one]) return;
+
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSDictionary *action = args[@"action"];
+    if (![action isKindOfClass:[NSDictionary class]]) {
+        [one error:@"INVALID_ARGUMENT" message:@"Missing action map" details:nil];
+        return;
+    }
+    
+    NSNumber *lockKeyIdVal = action[@"lockKeyId"];
+    if (!lockKeyIdVal) {
+        [one error:@"INVALID_ARGUMENT" message:@"Missing lockKeyId" details:nil];
+        return;
+    }
+    int lockKeyId = [lockKeyIdVal intValue];
+    
+    NSString *newPassword = action[@"newPassword"];
+    if (!newPassword || ![newPassword isKindOfClass:[NSString class]]) {
+         [one error:@"INVALID_ARGUMENT" message:@"Missing newPassword" details:nil];
+         return;
+    }
+
+    NSString *lockMac = [PluginUtils lockMacFromArgs:args]; 
+    if (lockMac) {
+        lockMac = [lockMac lowercaseString];
+    } else {
+         [one error:@"INVALID_ARGUMENT" message:@"Missing lockMac" details:nil];
+         return;
+    }
+
+    @try {
+        [HXBluetoothLockHelper modifyKeyPassword:newPassword
+                                       lockKeyId:lockKeyId
+                                          locMac:lockMac
+                                 completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            
+            [self.bleClient disConnectBle:nil];
+
+            NSDictionary *resp = [self responseMapWithCode:statusCode
+                                                   message:reason
+                                                   lockMac:lockMac
+                                                      body:nil];
+            if (statusCode == KSHStatusCode_Success) {
+                [one success:resp];
+            } else {
+                [one error:@"FAILED" message:[NSString stringWithFormat:@"Code: %ld", (long)statusCode] details:resp];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling changeLockKeyPwd: %@", exception);
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling changeLockKeyPwd" details:nil];
+    }
+}
+
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"getDna" one:one]) return;

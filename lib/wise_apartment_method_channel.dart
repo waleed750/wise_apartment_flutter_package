@@ -6,6 +6,7 @@ import 'wise_apartment.dart';
 import 'wise_apartment_platform_interface.dart';
 import 'src/wise_status_store.dart';
 import 'src/models/keys/delete_lock_key_action_model.dart';
+import 'src/models/keys/change_key_pwd_action_model.dart';
 
 class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
@@ -397,6 +398,49 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     try {
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('addLockKey', args);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> changeLockKeyPwd(
+    Map<String, dynamic> auth,
+    dynamic params,
+  ) async {
+    final args = Map<String, dynamic>.from(auth);
+
+    // Ensure `action` is populated either from `auth['action']` (if set by caller)
+    // or by converting `params` to the model/map.
+    // The `wise_apartment.dart` wrapper already sets args['action'] = params.
+    // But if called directly or differently, we add fallback logic like addLockKey.
+
+    if (!args.containsKey('action')) {
+      ChangeKeyPwdActionModel actionModel;
+      if (params is ChangeKeyPwdActionModel) {
+        actionModel = params;
+      } else if (params is Map) {
+        // Construct simply from map if available, or try casting
+        // Since we don't have a fromMap on ChangeKeyPwdActionModel yet,
+        // we can just use the map directly or enforce fields.
+        // But let's assume params is ALREADY the action map structure.
+        args['action'] = params;
+      }
+    }
+
+    // If args['action'] is already set (e.g. by wise_apartment.dart), method channel
+    // will just pass it through.
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('changeLockKeyPwd', args);
+
+      if (result != null) {
+        try {
+          WiseStatusStore.setFromMap(result);
+        } catch (_) {}
+      }
       return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);

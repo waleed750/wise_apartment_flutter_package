@@ -149,6 +149,23 @@ class MockWiseApartmentPlatform
   Stream<Map<String, dynamic>> get wifiRegistrationStream {
     return Stream.value({});
   }
+
+  @override
+  Future<Map<String, dynamic>> deleteLockKey(
+    Map<String, dynamic> auth,
+    params,
+  ) {
+    // TODO: implement deleteLockKey
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Map<String, dynamic>> changeLockKeyPwd(
+    Map<String, dynamic> auth,
+    params,
+  ) {
+    return Future.value({});
+  }
 }
 
 void main() {

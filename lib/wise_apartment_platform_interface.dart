@@ -1,5 +1,6 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:wise_apartment/src/models/hxj_bluetooth_device_model.dart';
+import 'package:wise_apartment/src/models/keys/change_key_pwd_action_model.dart';
 import 'wise_apartment_method_channel.dart';
 
 abstract class WiseApartmentPlatform extends PlatformInterface {
@@ -62,6 +63,14 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Adds a lock key using provided auth and action parameters.
   /// Returns a Map describing the result (code/ackMessage/body...).
   Future<Map<String, dynamic>> addLockKey(
+    Map<String, dynamic> auth,
+    dynamic params,
+  );
+
+  /// Change/modify a key's password on the lock.
+  /// `auth` contains DNA/auth fields; `params` may be a Map or a
+  /// `ChangeKeyPwdActionModel` describing the operation.
+  Future<Map<String, dynamic>> changeLockKeyPwd(
     Map<String, dynamic> auth,
     dynamic params,
   );

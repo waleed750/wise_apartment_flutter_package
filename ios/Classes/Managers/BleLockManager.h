@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)closeLock:(NSDictionary *)args result:(FlutterResult)result;
 - (void)setKeyExpirationAlarmTime:(NSDictionary *)args result:(FlutterResult)result;
 - (void)deleteLock:(NSDictionary *)args result:(FlutterResult)result;
+- (void)changeLockKeyPwd:(NSDictionary *)args result:(FlutterResult)result;
 - (void)getDna:(NSDictionary *)args result:(FlutterResult)result;
 - (void)addDevice:(NSDictionary *)args result:(FlutterResult)result;
 - (void)getSysParam:(NSDictionary *)args result:(FlutterResult)result;

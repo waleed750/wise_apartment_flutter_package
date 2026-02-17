@@ -331,6 +331,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"syncLockTime" isEqualToString:method]) {
         [self handleSyncLockTime:args result:result];
     }
+    else if ([@"changeLockKeyPwd" isEqualToString:method]) {
+        [self handleChangeLockKeyPwd:args result:result];
+    }
     else if ([@"getSysParam" isEqualToString:method]) {
         [self handleGetSysParam:args result:result];
     }
@@ -1076,6 +1079,17 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         NSLog(@"[WiseApartmentPlugin]   ↳ Calling synclockkeys (returns via MethodChannel)...");
         [self.lockManager synclockkeys:params result:result];
     }
+}
+
+- (void)handleChangeLockKeyPwd:(id)args result:(FlutterResult)result {
+    NSLog(@"[WiseApartmentPlugin] handleChangeLockKeyPwd called with args: %@", args);
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters");
+        result(@{@"success": @NO, @"message": @"Invalid parameters"});
+        return;
+    }
+    [self.lockManager changeLockKeyPwd:params result:result];
 }
 
 - (void)handleSyncLockTime:(id)args result:(FlutterResult)result {
