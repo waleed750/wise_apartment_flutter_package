@@ -653,4 +653,33 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       throw WiseApartmentException(e.code, e.message, e.details);
     }
   }
+
+  @override
+  Future<Map<String, dynamic>> setKeyEnabledById({
+    required Map<String, dynamic> auth,
+    required int lockKeyId,
+    required int userId,
+    required int keyType,
+    required int validNumber,
+  }) async {
+    final args = Map<String, dynamic>.from(auth);
+    args['operationMod'] = 1; // Mode 01: by key ID
+    args['keyType'] = keyType;
+    args['keyIdEn'] = lockKeyId;
+    args['userId'] = userId;
+    args['validNumber'] = validNumber;
+
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('enableDisableKeyByType', args);
+      if (result == null) return <String, dynamic>{};
+      // Persist status info if present
+      try {
+        WiseStatusStore.setFromMap(result);
+      } catch (_) {}
+      return result;
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
 }

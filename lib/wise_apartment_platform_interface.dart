@@ -126,4 +126,18 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     required int keyTypeBitmask,
     required int validNumber,
   });
+
+  /// Enable or disable an individual key by its ID.
+  /// `auth` contains DNA/auth fields required by the native SDK.
+  /// `lockKeyId` is the key ID to enable/disable.
+  /// `userId` is the user ID associated with the key.
+  /// `keyType` is the type of key.
+  /// `validNumber` determines enable/disable: 0 = disable, 1-254 = enable with count, 255 = unlimited.
+  Future<Map<String, dynamic>> setKeyEnabledById({
+    required Map<String, dynamic> auth,
+    required int lockKeyId,
+    required int userId,
+    required int keyType,
+    required int validNumber,
+  });
 }

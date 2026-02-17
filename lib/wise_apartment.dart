@@ -176,7 +176,7 @@ class WiseApartment {
 
     if (oldPwd.isEmpty) throw ArgumentError('oldPassword is required');
 
-    if (newPwd.length < 6 || newPwd.length > 12 ) {
+    if (newPwd.length < 6 || newPwd.length > 12) {
       throw ArgumentError('newPassword must be 6-12 digits');
     }
 
@@ -343,6 +343,31 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.setKeyTypeEnabled(
       auth: auth,
       keyTypeBitmask: keyTypeBitmask,
+      validNumber: validNumber,
+    );
+  }
+
+  /// Enable or disable an individual key by its ID.
+  /// `auth` is the DNA/auth map required by native SDKs.
+  /// `lockKeyId` is the key ID to enable/disable.
+  /// `userId` is the user ID associated with the key.
+  /// `keyType` is the type of key (01=Fingerprint, 02=Password, 04=Card, etc).
+  /// `validNumber`: 0 = disable, 1-254 = enable with usage count, 255 = unlimited.
+  Future<Map<String, dynamic>> setKeyEnabledById({
+    required Map<String, dynamic> auth,
+    required int lockKeyId,
+    required int userId,
+    required int keyType,
+    required int validNumber,
+  }) {
+    if (validNumber < 0 || validNumber > 255) {
+      throw ArgumentError('validNumber must be 0-255');
+    }
+    return WiseApartmentPlatform.instance.setKeyEnabledById(
+      auth: auth,
+      lockKeyId: lockKeyId,
+      userId: userId,
+      keyType: keyType,
       validNumber: validNumber,
     );
   }

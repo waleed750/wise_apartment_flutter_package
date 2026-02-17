@@ -11,6 +11,7 @@ import 'package:wise_apartment/src/models/keys/delete_lock_key_action_model.dart
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'add_lock_key_screen.dart';
 import 'edit_key_screen.dart';
+import 'key_type_enable_screen.dart';
 
 class SyncKeysScreen extends StatefulWidget {
   final Map<String, dynamic> auth;
@@ -336,6 +337,9 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     int index,
   ) async {
     final keyType = keyData['keyType'] as int? ?? 0;
+    final lockKeyId = keyData['lockKeyId'] as int? ?? 0;
+    final userId =
+        keyData['keyUserId'] as int? ?? keyData['userId'] as int? ?? 0;
     final currentValidNum =
         keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
 
@@ -349,9 +353,11 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
     });
 
     try {
-      final response = await _plugin.setKeyTypeEnabled(
+      final response = await _plugin.setKeyEnabledById(
         auth: widget.auth,
-        keyTypeBitmask: keyType,
+        lockKeyId: lockKeyId,
+        userId: userId,
+        keyType: keyType,
         validNumber: newValidNum,
       );
 
@@ -365,7 +371,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(enabling ? 'Key type enabled' : 'Key type disabled'),
+            content: Text(enabling ? 'Key enabled' : 'Key disabled'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -469,8 +475,25 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
           appBar: AppBar(
             title: const Text('Sync Lock Keys'),
             actions: [
-              InkWell(onTap: _syncKeys, child: Icon(Icons.sync)),
-              SizedBox(width: 12),
+              IconButton(
+                icon: const Icon(Icons.toggle_on),
+                tooltip: 'Enable/Disable by Key Type',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          KeyTypeEnableScreen(auth: widget.auth),
+                    ),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.sync),
+                tooltip: 'Sync Keys',
+                onPressed: _syncKeys,
+              ),
+              const SizedBox(width: 8),
             ],
           ),
           body: Padding(
