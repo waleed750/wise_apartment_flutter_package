@@ -656,7 +656,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     args['keyIdEn'] = enabled ? 1 : 0;
     args['keyType'] = keyType;
     args['userId'] = userId;
-    args['validNumber'] = enabled ? 255 : 0;
+    args['validNumber'] = enabled ? 1 : 0;
 
     try {
       final Map<String, dynamic>? result = await methodChannel

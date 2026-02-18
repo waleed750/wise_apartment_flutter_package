@@ -334,6 +334,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
   Future<void> _toggleKeyEnabled(
     Map<String, dynamic> keyData,
     int index,
+    bool enabled,
   ) async {
     final keyType = keyData['keyType'] as int? ?? 0;
     final lockKeyId = keyData['lockKeyId'] as int? ?? 0;
@@ -343,7 +344,7 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
         keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
 
     // Determine new state: if currently enabled (>0), disable; if disabled, enable
-    final enabling = currentValidNum == 0;
+    final enabling = enabled;
 
     setState(() {
       _togglingKey = true;
@@ -539,7 +540,6 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                         
                         // Calculate isEnabled locally
                         final validNum = keyData['validNumber'] as int? ?? keyData['vaildNumber'] as int? ?? 255;
-                        final isEnabled = validNum > 0;
 
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -553,20 +553,32 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Transform.scale(
-                                  scale: 0.8,
-                                  child: Switch(
-                                    value: isEnabled,
-                                    onChanged: _togglingKey
-                                        ? null
-                                        : (value) {
-                                            _toggleKeyEnabled(
-                                              keyData,
-                                              index,
-                                            );
-                                          },
-                                    activeColor: Colors.green,
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(60, 32),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    textStyle: const TextStyle(fontSize: 12),
                                   ),
+                                  onPressed: _togglingKey ? null : () {
+                                    _toggleKeyEnabled(keyData, index, true);
+                                  },
+                                  child: const Text('Enable'),
+                                ),
+                                const SizedBox(width: 4),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red.shade600,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(60, 32),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    textStyle: const TextStyle(fontSize: 12),
+                                  ),
+                                  onPressed: _togglingKey ? null : () {
+                                    _toggleKeyEnabled(keyData, index, false);
+                                  },
+                                  child: const Text('Disable'),
                                 ),
                                 PopupMenuButton<String>(
                                   onSelected: (value) async {

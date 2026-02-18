@@ -192,6 +192,12 @@ class MockWiseApartmentPlatform
     // TODO: implement enableKeyByUserId
     throw UnimplementedError();
   }
+  
+  @override
+  Future<Map<String, dynamic>> exitCmd(Map<String, dynamic> auth) {
+    // TODO: implement exitCmd
+    throw UnimplementedError();
+  }
 }
 
 void main() {

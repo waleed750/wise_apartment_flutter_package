@@ -1078,7 +1078,7 @@
     int operationMod = [PluginUtils intFromArgs:args key:@"operationMod" defaultValue:1];
     int keyType = [PluginUtils intFromArgs:args key:@"keyType" defaultValue:0];
     int validNumber = [PluginUtils intFromArgs:args key:@"validNumber" defaultValue:0];
-    int lockKeyId = [PluginUtils intFromArgs:args key:@"keyIdEn" defaultValue:0];
+    int lockKeyId = [PluginUtils intFromArgs:args key:@"lockKeyId" defaultValue:0];
     int userId = [PluginUtils intFromArgs:args key:@"userId" defaultValue:0];
 
 

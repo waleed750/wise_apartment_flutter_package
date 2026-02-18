@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result;
 - (void)syncLockKeyStream:(NSDictionary *)args eventEmitter:(WAEventEmitter *)eventEmitter;
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result;
+- (void)exitCmd:(NSDictionary *)args result:(FlutterResult)result;
 
 @end
 
