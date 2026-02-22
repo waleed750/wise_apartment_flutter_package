@@ -14,6 +14,8 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyActi
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ChangeKeyPwdAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ModifyKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.EnableLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEAddBigDataKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEKeyValidTimeParam;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.profile.client.FunCallback;
@@ -22,6 +24,7 @@ import com.example.hxjblinklibrary.blinkble.entity.reslut.HxBLEUnlockResult;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.DnaInfo;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.SysParamResult;
 import com.example.hxjblinklibrary.blinkble.profile.data.common.StatusCode;
+import com.example.hxjblinklibrary.blinkble.profile.data.common.KeyType;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.OpenLockAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleSetHotelLockSystemAction;
@@ -1625,6 +1628,97 @@ public class BleLockManager {
         } catch (Throwable t) {
             Map<String, Object> err = new HashMap<>();
             err.put("type", "sysParamError");
+            err.put("message", t.getMessage());
+            callback.onError(err);
+        }
+    }
+
+    /**
+     * Streaming version for adding big data keys (fingerprint/face).
+     * Uses AddBigDataKeyHelper to chunk data and emit progress events.
+     */
+    public void addFingerprintKeyStream(Map<String, Object> args, final AddLockKeyStreamCallback callback) {
+        Log.d(TAG, "addFingerprintKeyStream called with args: " + args);
+        
+        try {
+            // Extract parameters
+            String fingerprintData = parseString(args.get("fingerprintData"), "");
+            if (fingerprintData.isEmpty()) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("type", "addLockKeyError");
+                err.put("message", "Fingerprint data is required");
+                callback.onError(err);
+                return;
+            }
+            
+            int keyGroupId = parseInt(args.get("keyGroupId"), 901);
+            int keyType = parseInt(args.get("keyType"), KeyType.FINGER);
+            
+            BlinkyAuthAction authAction = PluginUtils.createAuthAction(args);
+            
+            // Build time param
+            BLEKeyValidTimeParam timeParam = new BLEKeyValidTimeParam();
+            timeParam.authMode = parseInt(args.get("authMode"), 1);
+            timeParam.validStartTime = parseLong(args.get("validStartTime"), 0L);
+            timeParam.validEndTime = parseLong(args.get("validEndTime"), 0xFFFFFFFFL);
+            timeParam.validNumber = parseInt(args.get("validNumber"), 0xFF);
+            timeParam.weeks = parseInt(args.get("weeks"), 0x7F);
+            timeParam.dayStartTimes = parseInt(args.get("dayStartTimes"), 0);
+            timeParam.dayEndTimes = parseInt(args.get("dayEndTimes"), 1439);
+            
+            // Create helper and start
+            AddBigDataKeyHelper helper = new AddBigDataKeyHelper(null, bleClient);
+            helper.startWithBigDataBase64Str(
+                fingerprintData,
+                authAction.getMac(),
+                keyGroupId,
+                keyType,
+                timeParam,
+                authAction,
+                new AddBigDataKeyHelper.SendBigKeyDataCallback() {
+                    @Override
+                    public void onProgress(int statusCode, String message, int phase, double progress) {
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("type", "addLockKeyChunk");
+                        event.put("code", statusCode);
+                        event.put("message", message);
+                        event.put("phase", phase);
+                        event.put("progress", progress);
+                        callback.onChunk(event);
+                    }
+                    
+                    @Override
+                    public void onComplete(int statusCode, String message, LockKeyResult keyResult) {
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("type", "addLockKeyDone");
+                        event.put("code", statusCode);
+                        event.put("message", message);
+                        event.put("isSuccessful", true);
+                        event.put("progress", 1.0);
+                        
+                        if (keyResult != null) {
+                            Map<String, Object> bodyMap = objectToMap(keyResult);
+                            event.put("body", bodyMap);
+                        }
+                        
+                        callback.onDone(event);
+                    }
+                    
+                    @Override
+                    public void onError(int statusCode, String message) {
+                        Map<String, Object> event = new HashMap<>();
+                        event.put("type", "addLockKeyError");
+                        event.put("code", statusCode);
+                        event.put("message", message);
+                        callback.onError(event);
+                    }
+                }
+            );
+            
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception in addFingerprintKeyStream", t);
+            Map<String, Object> err = new HashMap<>();
+            err.put("type", "addLockKeyError");
             err.put("message", t.getMessage());
             callback.onError(err);
         }

@@ -105,6 +105,19 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _addLockKeyStream!;
   }
 
+  Stream<Map<String, dynamic>>? _bleEventStream;
+
+  @override
+  Stream<Map<String, dynamic>> get bleEventStream {
+    _bleEventStream ??= eventChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        return Map<String, dynamic>.from(event);
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _bleEventStream!;
+  }
+
   // ignore: unused_element
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
     final dynamic mac = auth['mac'];
@@ -213,6 +226,19 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     try {
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('addLockKeyStream', args);
+      return result ?? <String, dynamic>{};
+    } on PlatformException catch (e) {
+      throw WiseApartmentException(e.code, e.message, e.details);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> startAddFingerprintKeyStream(
+    Map<String, dynamic> params,
+  ) async {
+    try {
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('addFingerprintKeyStream', params);
       return result ?? <String, dynamic>{};
     } on PlatformException catch (e) {
       throw WiseApartmentException(e.code, e.message, e.details);

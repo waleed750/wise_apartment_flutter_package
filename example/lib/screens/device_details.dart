@@ -9,6 +9,7 @@ import 'sync_loc_records.dart';
 import 'sync_keys_screen.dart';
 import 'dna_info_screen.dart';
 import 'add_lock_key_screen.dart';
+import 'add_fingerprint_screen.dart';
 import 'wifi_registration_screen.dart';
 import '../src/secure_storage.dart';
 import '../src/wifi_config.dart';
@@ -488,6 +489,30 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                     );
                   },
                   child: const Text('Add Key'),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final auth = widget.device.toMap();
+                    if (!mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AddFingerprintScreen(
+                          device: widget.device,
+                          auth: auth,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Add Fingerprint'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
 
