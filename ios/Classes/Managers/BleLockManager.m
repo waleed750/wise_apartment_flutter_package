@@ -14,11 +14,13 @@
 #import "OneShotResult.h"
 #import "PluginUtils.h"
 #import "WAEventEmitter.h"
+#import "../Utils/HXAddBigDataKeyHelper.h"
 
 @interface BleLockManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
 @property (nonatomic, strong) BleScanManager *scanManager;
 @property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
+@property (nonatomic, strong) HXAddBigDataKeyHelper *addBigDataKeyHelper;
 @end
 
 @implementation BleLockManager
@@ -860,7 +862,7 @@
     }
 
     FlutterError *cfgErr = nil;
-    if (![self configure LockFromArgs:args error:&cfgErr]) {
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
         [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": cfgErr.message ?: @"Configuration error", @"code": @(-1) }];
         return;
     }
@@ -878,7 +880,7 @@
     }
 
     int keyGroupId = [args[@"keyGroupId"] intValue] ?: 901;
-    int keyType = [args[@"keyType"] intValue] ?: 2; // 2 = fingerprint (KSHKeyType_Fingerprint)
+    int keyType = [args[@"keyType"] intValue] ?: 1; // 1 = fingerprint (KSHKeyType_Fingerprint)
 
     // Build time param
     SHBLEKeyValidTimeParam *timeParam = [[SHBLEKeyValidTimeParam alloc] init];
@@ -889,194 +891,78 @@
     timeParam.weeks = [args[@"weeks"] intValue] ?: 0x7F;
     timeParam.dayStartTimes = [args[@"dayStartTimes"] intValue] ?: 0;
     timeParam.dayEndTimes = [args[@"dayEndTimes"] intValue] ?: 1439;
+    timeParam.modifyTimestamp = [[NSDate date] timeIntervalSince1970];
 
-    // Start adding fingerprint with progress tracking
-    [self addBigDataKeyWithBase64:fingerprintData
-                           lockMac:mac
-                        keyGroupId:keyGroupId
-                           keyType:(KSHKeyType)keyType
-                         timeParam:timeParam
-                      eventEmitter:eventEmitter];
-}
+    NSLog(@"[BleLockManager] Starting fingerprint addition with HXAddBigDataKeyHelper");
+    NSLog(@"  - lockMac: %@", mac);
+    NSLog(@"  - keyGroupId: %d", keyGroupId);
+    NSLog(@"  - keyType: %d", keyType);
+    NSLog(@"  - fingerprintData length: %lu", (unsigned long)fingerprintData.length);
 
-- (void)addBigDataKeyWithBase64:(NSString *)base64Data
-                         lockMac:(NSString *)lockMac
-                      keyGroupId:(int)keyGroupId
-                         keyType:(KSHKeyType)keyType
-                       timeParam:(SHBLEKeyValidTimeParam *)timeParam
-                    eventEmitter:(WAEventEmitter *)eventEmitter {
-    
-    // Decode Base64
-    NSData *keyData = [[NSData alloc] initWithBase64EncodedString:base64Data options:0];
-    if (!keyData || keyData.length == 0) {
-        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": @"Invalid Base64 fingerprint data", @"code": @(-1) }];
-        return;
+    // Initialize helper if needed
+    if (!self.addBigDataKeyHelper) {
+        self.addBigDataKeyHelper = [[HXAddBigDataKeyHelper alloc] init];
     }
-
-    NSLog(@"[BleLockManager] Decoded %lu bytes from Base64", (unsigned long)keyData.length);
-
-    // Prepare params for chunked sending
-    SHBLEAddBigDataKeyParam *param = [[SHBLEAddBigDataKeyParam alloc] init];
-    param.totalBytesLength = (int)keyData.length;
-    param.currentIndex = 0;
-    int maxBlockSize = 180;
-    int totalNum = (keyData.length / maxBlockSize) + ((keyData.length % maxBlockSize) == 0 ? 0 : 1);
-    param.totalNum = totalNum;
-    param.keyGroupId = keyGroupId;
-
-    // Emit initial progress
-    [eventEmitter emitEvent:@{
-        @"type": @"addLockKeyChunk",
-        @"code": @(0x01),
-        @"message": [NSString stringWithFormat:@"Preparing to send %d packets", totalNum],
-        @"progress": @(0.0),
-        @"phase": @(0)
-    }];
-
-    // Recursive sending helper
-    [self recursiveSendBigDataKey:keyData
-                            param:param
-                      maxBlockSize:maxBlockSize
-                          lockMac:lockMac
-                          keyType:keyType
-                        timeParam:timeParam
-                     eventEmitter:eventEmitter];
-}
-
-- (void)recursiveSendBigDataKey:(NSData *)keyData
-                          param:(SHBLEAddBigDataKeyParam *)param
-                    maxBlockSize:(int)maxBlockSize
-                        lockMac:(NSString *)lockMac
-                        keyType:(KSHKeyType)keyType
-                      timeParam:(SHBLEKeyValidTimeParam *)timeParam
-                   eventEmitter:(WAEventEmitter *)eventEmitter {
-    
-    NSInteger currentBytes = param.currentIndex * maxBlockSize;
-    NSRange range = NSMakeRange(currentBytes, maxBlockSize);
-    
-    if ((currentBytes + maxBlockSize) > param.totalBytesLength) {
-        range.length = (param.totalBytesLength - currentBytes);
-        NSLog(@"[BleLockManager] Sending final packet %d/%d", param.currentIndex, param.totalNum);
-    } else {
-        NSLog(@"[BleLockManager] Sending packet %d/%d", param.currentIndex, param.totalNum);
-    }
-    
-    NSData *sendData = [keyData subdataWithRange:range];
-    param.data = sendData;
 
     __weak typeof(self) weakSelf = self;
-    
-    // Call SDK method based on key type
-    if (keyType == KSHKeyType_Fingerprint) {
-        [HXBluetoothLockHelper addFingerprintKeyDataParam:param
-                                                timeParam:timeParam
-                                                   locMac:lockMac
-                                          completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSInteger currentIndex, int lockKeyId) {
-            [weakSelf handleBigDataKeyResponse:statusCode
-                                         reason:reason
-                                  currentIndex:currentIndex
-                                      lockKeyId:lockKeyId
-                                        keyData:keyData
-                                          param:param
-                                   maxBlockSize:maxBlockSize
-                                        lockMac:lockMac
-                                        keyType:keyType
-                                      timeParam:timeParam
-                                   eventEmitter:eventEmitter];
-        }];
-    } else if (keyType == KSHKeyType_Face) {
-        [HXBluetoothLockHelper addFaceKeyDataParam:param
-                                         timeParam:timeParam
-                                           lockMac:lockMac
-                                   completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSInteger currentIndex, int lockKeyId) {
-            [weakSelf handleBigDataKeyResponse:statusCode
-                                         reason:reason
-                                  currentIndex:currentIndex
-                                      lockKeyId:lockKeyId
-                                        keyData:keyData
-                                          param:param
-                                   maxBlockSize:maxBlockSize
-                                        lockMac:lockMac
-                                        keyType:keyType
-                                      timeParam:timeParam
-                                   eventEmitter:eventEmitter];
-        }];
-    }
-}
+    __weak typeof(eventEmitter) weakEmitter = eventEmitter;
 
-- (void)handleBigDataKeyResponse:(KSHStatusCode)statusCode
-                           reason:(NSString *)reason
-                    currentIndex:(NSInteger)currentIndex
-                        lockKeyId:(int)lockKeyId
-                          keyData:(NSData *)keyData
-                            param:(SHBLEAddBigDataKeyParam *)param
-                     maxBlockSize:(int)maxBlockSize
-                          lockMac:(NSString *)lockMac
-                          keyType:(KSHKeyType)keyType
-                        timeParam:(SHBLEKeyValidTimeParam *)timeParam
-                     eventEmitter:(WAEventEmitter *)eventEmitter {
-    
-    if (statusCode == KSHStatusCode_Success) {
-        param.currentIndex++;
-        double progress = (param.currentIndex * 1.0) / param.totalNum;
+    // Use SDK's built-in helper - this handles all chunking, progress, and retries automatically
+    [self.addBigDataKeyHelper startWithBigDataBase64Str:fingerprintData
+                                                 lockMac:mac
+                                              keyGroupId:keyGroupId
+                                                 keyType:(KSHKeyType)keyType
+                                               timeParam:timeParam
+                                           progressBlock:^(NSInteger statusCode, NSString * _Nullable reason, KSHBLESendBigKeyDataPhase phase, CGFloat progress, HXKeyModel * _Nullable keyObj) {
+        NSLog(@"[BleLockManager] Progress callback - statusCode: %ld, phase: %ld, progress: %.2f", (long)statusCode, (long)phase, progress);
         
-        if (param.currentIndex == param.totalNum) {
-            progress = 0.98; // Almost done, waiting for final confirmation
-        }
-        
-        NSLog(@"[BleLockManager] Progress: %.0f%% (%d/%d)", progress * 100, param.currentIndex, param.totalNum);
-        
-        // Emit progress chunk
-        [eventEmitter emitEvent:@{
-            @"type": @"addLockKeyChunk",
-            @"code": @((int)statusCode),
-            @"message": [NSString stringWithFormat:@"Sending packet %d/%d", param.currentIndex, param.totalNum],
-            @"progress": @(progress),
-            @"phase": @(1)
-        }];
-        
-        if (param.currentIndex == param.totalNum) {
-            // Build key result
-            NSMutableDictionary *keyObj = [NSMutableDictionary dictionary];
-            keyObj[@"lockKeyId"] = @(lockKeyId);
-            keyObj[@"keyType"] = @(keyType);
-            keyObj[@"keyGroupId"] = @(param.keyGroupId);
-            keyObj[@"validStartTime"] = @(timeParam.validStartTime);
-            keyObj[@"validEndTime"] = @(timeParam.validEndTime);
-            keyObj[@"validNumber"] = @(timeParam.vaildNumber);
-            keyObj[@"authMode"] = @(timeParam.authMode);
-            keyObj[@"weeks"] = @(timeParam.weeks);
-            keyObj[@"dayStartTimes"] = @(timeParam.dayStartTimes);
-            keyObj[@"dayEndTimes"] = @(timeParam.dayEndTimes);
-            
-            // Emit done
-            [eventEmitter emitEvent:@{
-                @"type": @"addLockKeyDone",
-                @"code": @(0x01),
-                @"message": @"Fingerprint added successfully",
-                @"isSuccessful": @YES,
-                @"progress": @(1.0),
-                @"body": keyObj
+        if (phase == KSHBLESendBigKeyDataPhase_sending) {
+            // Sending data packets
+            [weakEmitter emitEvent:@{
+                @"type": @"addLockKeyChunk",
+                @"code": @((int)statusCode),
+                @"message": [NSString stringWithFormat:@"Sending fingerprint data... %.0f%%", progress * 100],
+                @"progress": @(progress),
+                @"phase": @(1)
             }];
-        } else {
-            // Continue sending
-            [self recursiveSendBigDataKey:keyData
-                                    param:param
-                              maxBlockSize:maxBlockSize
-                                  lockMac:lockMac
-                                  keyType:keyType
-                                timeParam:timeParam
-                             eventEmitter:eventEmitter];
+        } else if (phase == KSHBLESendBigKeyDataPhase_end) {
+            // Finished
+            if (statusCode == KSHStatusCode_Success) {
+                NSLog(@"[BleLockManager] ✓ Fingerprint added successfully");
+                
+                // Build result body from keyObj
+                NSMutableDictionary *body = [NSMutableDictionary dictionary];
+                if (keyObj) {
+                    body[@"lockKeyId"] = @(keyObj.keyID);
+                    body[@"keyType"] = @(keyObj.keyType);
+                    body[@"keyGroupId"] = @(keyObj.keyGroupId);
+                    body[@"validStartTime"] = @(keyObj.validStartTime);
+                    body[@"validEndTime"] = @(keyObj.validEndTime);
+                    body[@"vaildNumber"] = @(keyObj.vaildNumber);
+                }
+                
+                [weakEmitter emitEvent:@{
+                    @"type": @"addLockKeyDone",
+                    @"code": @(0x01),
+                    @"message": @"Fingerprint added successfully",
+                    @"isSuccessful": @YES,
+                    @"progress": @(1.0),
+                    @"body": body
+                }];
+            } else {
+                NSLog(@"[BleLockManager] ✗ Failed to add fingerprint - statusCode: %ld, reason: %@", (long)statusCode, reason);
+                
+                [weakEmitter emitEvent:@{
+                    @"type": @"addLockKeyError",
+                    @"code": @((int)statusCode),
+                    @"message": reason ?: @"Failed to add fingerprint"
+                }];
+            }
+            
+            // Clean up helper
+            weakSelf.addBigDataKeyHelper = nil;
         }
-    } else {
-        // Error
-        NSString *errorMessage = [NSString stringWithFormat:@"Failed to add key: %@", reason ?: @"Unknown error"];
-        [eventEmitter emitEvent:@{
-            @"type": @"addLockKeyError",
-            @"code": @((int)statusCode),
-            @"message": errorMessage
-        }];
-    }
+    }];
 }
 
 - (void)syncLockTime:(NSDictionary *)args result:(FlutterResult)result {
