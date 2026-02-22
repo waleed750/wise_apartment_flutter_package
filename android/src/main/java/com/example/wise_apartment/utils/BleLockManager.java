@@ -1064,7 +1064,7 @@ public class BleLockManager {
                     action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
                     action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
-                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"), 901));  // User keys use 901
+                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"),0));  
                     action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
                     action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
                     action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));

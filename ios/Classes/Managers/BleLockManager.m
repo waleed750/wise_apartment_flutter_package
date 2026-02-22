@@ -14,13 +14,11 @@
 #import "OneShotResult.h"
 #import "PluginUtils.h"
 #import "WAEventEmitter.h"
-#import "../../ios_wise_apartment-main/Key/Add/HXAddBigDataKeyHelper.h"
 
 @interface BleLockManager ()
 @property (nonatomic, strong) HxjBleClient *bleClient;
 @property (nonatomic, strong) BleScanManager *scanManager;
 @property (nonatomic, strong) HXAddBluetoothLockHelper *addHelper;
-@property (nonatomic, strong) HXAddBigDataKeyHelper *addBigDataKeyHelper;
 @end
 
 @implementation BleLockManager
@@ -784,23 +782,35 @@
     NSDictionary *actionMap = [args[@"action"] isKindOfClass:[NSDictionary class]] ? args[@"action"] : @{};
 
     HXBLEAddKeyBaseParams *addKeyParams = nil;
-    NSString *password = actionMap[@"password"];
+    NSString *password = [actionMap[@"password"] isKindOfClass:[NSString class]] ? actionMap[@"password"] : nil;
     int addedKeyType = [actionMap[@"addedKeyType"] intValue];
+    int authMode = [actionMap[@"authorMode"] intValue];
 
-    if (password && password.length > 0) {
+    // When authMode==1: password mode
+    if (authMode == 1 && password && password.length > 0) {
         HXBLEAddPasswordKeyParams *passwordParams = [[HXBLEAddPasswordKeyParams alloc] init];
         passwordParams.key = password;
         addKeyParams = passwordParams;
-    } else if (addedKeyType >= 2 && addedKeyType <= 4) {
+    }
+    // When authMode==0: biometric/card mode (1=fingerprint, 4=card, 8=remote)
+    // When authMode==1: card number mode (4=card)
+    else if (addedKeyType == 1 || addedKeyType == 4 || addedKeyType == 8) {
         HXBLEAddOtherKeyParams *otherParams = [[HXBLEAddOtherKeyParams alloc] init];
-        if (addedKeyType == 2) otherParams.keyType = KSHKeyType_Fingerprint;
-        else if (addedKeyType == 3) otherParams.keyType = KSHKeyType_Card;
-        else if (addedKeyType == 4) otherParams.keyType = KSHKeyType_RemoteControl;
-        NSString *cardId = actionMap[@"cardId"];
+        if (addedKeyType == 1) {
+            // authMode=0: fingerprint enrollment
+            otherParams.keyType = KSHKeyType_Fingerprint;
+        } else if (addedKeyType == 4) {
+            // Card (both authMode=0 and authMode=1)
+            otherParams.keyType = KSHKeyType_Card;
+        } else if (addedKeyType == 8) {
+            // authMode=0: remote control
+            otherParams.keyType = KSHKeyType_RemoteControl;
+        }
+        NSString *cardId = [actionMap[@"cardId"] isKindOfClass:[NSString class]] ? actionMap[@"cardId"] : nil;
         if (cardId && cardId.length > 0) otherParams.cardId = cardId;
         addKeyParams = otherParams;
     } else {
-        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": @"Invalid key type or missing password", @"code": @(-1) }];
+        [eventEmitter emitEvent:@{ @"type": @"addLockKeyError", @"message": [NSString stringWithFormat:@"Invalid key type (%d) for authMode (%d)", addedKeyType, authMode], @"code": @(-1) }];
         return;
     }
 

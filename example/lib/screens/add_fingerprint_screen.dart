@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class AddFingerprintScreen extends StatefulWidget {
 class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
   final _plugin = WiseApartment();
   final _keyGroupIdController = TextEditingController();
+  StreamSubscription<dynamic>? _streamSubscription;
 
   // Use AddLockKeyActionModel for validation and parameter management
   late AddLockKeyActionModel _actionModel;
@@ -58,6 +60,13 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
   @override
   void dispose() {
+    _streamSubscription?.cancel();
+    // Close connection when disposing
+    if (_isAdding) {
+      _plugin.exitCmd(widget.auth).catchError((e) {
+        log('[AddFingerprintScreen] exitCmd error in dispose: $e');
+      });
+    }
     _keyGroupIdController.dispose();
     super.dispose();
   }
@@ -142,13 +151,18 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
       // Start listening to the addLockKey stream
       final stream = _plugin.addLockKeyStream;
-      final streamSubscription = stream.listen(
+      _streamSubscription = stream.listen(
         (event) {
+          if (!mounted) return;
           log('[AddFingerprintScreen] Stream event: $event');
 
           final type = event['type'] as String?;
           final message = event['message'] as String? ?? '';
-          final body = event['body'] as Map<String, dynamic>?;
+          // Safely convert to Map<String, dynamic>
+          final bodyRaw = event['body'];
+          final body = bodyRaw != null && bodyRaw is Map
+              ? Map<String, dynamic>.from(bodyRaw)
+              : null;
 
           // Extract authTotal and authCount from response body
           if (body != null) {
@@ -162,53 +176,76 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
             progress = _authCount / _authTotal;
           }
 
-          setState(() {
-            _progress = progress;
+          if (mounted) {
+            setState(() {
+              _progress = progress;
 
-            // Build progress message
-            if (type == 'addLockKeyChunk' && _authTotal > 0) {
-              if (_authTotal == 255) {
-                // Special case: unlimited/unknown scans
-                _statusMessage = 'Please place finger on sensor ($_authCount)';
+              // Build progress message
+              if (type == 'addLockKeyChunk' && _authTotal > 0) {
+                if (_authTotal == 255) {
+                  // Special case: unlimited/unknown scans
+                  _statusMessage = 'Please place finger on sensor ($_authCount)';
+                } else {
+                  // Normal case: show progress (e.g., "2/3")
+                  _statusMessage =
+                      'Please place finger on sensor ($_authCount/$_authTotal)';
+                }
               } else {
-                // Normal case: show progress (e.g., "2/3")
-                _statusMessage =
-                    'Please place finger on sensor ($_authCount/$_authTotal)';
+                _statusMessage = message;
               }
-            } else {
-              _statusMessage = message;
-            }
-          });
+            });
+          }
 
           if (type == 'addLockKeyDone') {
             // Success - all fingerprint scans completed!
-            setState(() {
-              _isAdding = false;
-              _statusMessage =
-                  'Fingerprint enrolled successfully! ($_authCount/$_authTotal)';
-              _progress = 1.0;
+            _streamSubscription?.cancel();
+            // Close connection
+            _plugin.exitCmd(widget.auth).catchError((e) {
+              log('[AddFingerprintScreen] exitCmd error: $e');
             });
+            if (mounted) {
+              setState(() {
+                _isAdding = false;
+                _statusMessage =
+                    'Fingerprint enrolled successfully! ($_authCount/$_authTotal)';
+                _progress = 1.0;
+              });
 
-            // Navigate back after delay
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) {
-                Navigator.of(context).pop(true); // Return success
-              }
-            });
+              // Navigate back after delay
+              Future.delayed(const Duration(seconds: 2), () {
+                if (mounted) {
+                  Navigator.of(context).pop(true); // Return success
+                }
+              });
+            }
           } else if (type == 'addLockKeyError') {
             // Error
-            setState(() {
-              _isAdding = false;
-              _statusMessage = 'Error: $message';
+            _streamSubscription?.cancel();
+            // Close connection
+            _plugin.exitCmd(widget.auth).catchError((e) {
+              log('[AddFingerprintScreen] exitCmd error: $e');
             });
+            if (mounted) {
+              setState(() {
+                _isAdding = false;
+                _statusMessage = 'Error: $message';
+              });
+            }
           }
         },
         onError: (error) {
           log('[AddFingerprintScreen] Stream error: $error');
-          setState(() {
-            _isAdding = false;
-            _statusMessage = 'Error: $error';
+          _streamSubscription?.cancel();
+          // Close connection
+          _plugin.exitCmd(widget.auth).catchError((e) {
+            log('[AddFingerprintScreen] exitCmd error: $e');
           });
+          if (mounted) {
+            setState(() {
+              _isAdding = false;
+              _statusMessage = 'Error: $error';
+            });
+          }
         },
       );
 
@@ -260,175 +297,176 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
             ),
             const SizedBox(height: 24),
 
-              // User ID input
-              TextField(
-                controller: _keyGroupIdController,
-                decoration: const InputDecoration(
-                  labelText: 'User ID (900-4095)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Enter a unique user ID for this fingerprint',
-                ),
-                keyboardType: TextInputType.number,
+            // User ID input
+            TextField(
+              controller: _keyGroupIdController,
+              decoration: const InputDecoration(
+                labelText: 'User ID (900-4095)',
+                border: OutlineInputBorder(),
+                helperText: 'Enter a unique user ID for this fingerprint',
               ),
-              const SizedBox(height: 16),
+              keyboardType: TextInputType.text,
+              
+              onTapOutside: (event) {
+                Focus.of(context).unfocus();
+              },
+              textInputAction:  TextInputAction.done,
+              onSubmitted: (value) {
+                Focus.of(context).unfocus();
+              },
+            ),
+            const SizedBox(height: 16),
 
-              // Validity type selector
-              const Text(
-                'Validity Type:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Wrap(
-                spacing: 8,
+            // Validity type selector
+            const Text(
+              'Validity Type:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Permanent'),
+                  selected: _validityType == 0,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _validityType = 0);
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Custom Period'),
+                  selected: _validityType == 1,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _validityType = 1);
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Recurring'),
+                  selected: _validityType == 2,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _validityType = 2);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Validity configuration based on type
+            if (_validityType == 1) ...[
+              Row(
                 children: [
-                  ChoiceChip(
-                    label: const Text('Permanent'),
-                    selected: _validityType == 0,
-                    onSelected: (selected) {
-                      if (selected) setState(() => _validityType = 0);
-                    },
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        _startDate != null
+                            ? '${_startDate!.year}-${_startDate!.month}-${_startDate!.day}'
+                            : 'Start Date',
+                      ),
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (date != null) setState(() => _startDate = date);
+                      },
+                    ),
                   ),
-                  ChoiceChip(
-                    label: const Text('Custom Period'),
-                    selected: _validityType == 1,
-                    onSelected: (selected) {
-                      if (selected) setState(() => _validityType = 1);
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('Recurring'),
-                    selected: _validityType == 2,
-                    onSelected: (selected) {
-                      if (selected) setState(() => _validityType = 2);
-                    },
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        _endDate != null
+                            ? '${_endDate!.year}-${_endDate!.month}-${_endDate!.day}'
+                            : 'End Date',
+                      ),
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate:
+                              _startDate?.add(const Duration(days: 30)) ??
+                              DateTime.now().add(const Duration(days: 30)),
+                          firstDate: _startDate ?? DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 730),
+                          ),
+                        );
+                        if (date != null) setState(() => _endDate = date);
+                      },
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ] else if (_validityType == 2) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.access_time),
+                      label: Text(
+                        _dailyStart != null
+                            ? '${_dailyStart!.hour}:${_dailyStart!.minute.toString().padLeft(2, '0')}'
+                            : 'Daily Start',
+                      ),
+                      onPressed: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: const TimeOfDay(hour: 9, minute: 0),
+                        );
+                        if (time != null) setState(() => _dailyStart = time);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.access_time),
+                      label: Text(
+                        _dailyEnd != null
+                            ? '${_dailyEnd!.hour}:${_dailyEnd!.minute.toString().padLeft(2, '0')}'
+                            : 'Daily End',
+                      ),
+                      onPressed: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: const TimeOfDay(hour: 21, minute: 0),
+                        );
+                        if (time != null) setState(() => _dailyEnd = time);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                children: [
+                  for (int day = 1; day <= 7; day++)
+                    FilterChip(
+                      label: Text(
+                        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day -
+                            1],
+                      ),
+                      selected: _selectedWeekDays.contains(day),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedWeekDays.add(day);
+                          } else {
+                            _selectedWeekDays.remove(day);
+                          }
+                        });
+                      },
+                    ),
+                ],
+              ),
+            ],
 
-              // Validity configuration based on type
-              if (_validityType == 1) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.calendar_today),
-                        label: Text(
-                          _startDate != null
-                              ? '${_startDate!.year}-${_startDate!.month}-${_startDate!.day}'
-                              : 'Start Date',
-                        ),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(
-                              const Duration(days: 365),
-                            ),
-                          );
-                          if (date != null) setState(() => _startDate = date);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.calendar_today),
-                        label: Text(
-                          _endDate != null
-                              ? '${_endDate!.year}-${_endDate!.month}-${_endDate!.day}'
-                              : 'End Date',
-                        ),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate:
-                                _startDate?.add(const Duration(days: 30)) ??
-                                DateTime.now().add(const Duration(days: 30)),
-                            firstDate: _startDate ?? DateTime.now(),
-                            lastDate: DateTime.now().add(
-                              const Duration(days: 730),
-                            ),
-                          );
-                          if (date != null) setState(() => _endDate = date);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ] else if (_validityType == 2) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.access_time),
-                        label: Text(
-                          _dailyStart != null
-                              ? '${_dailyStart!.hour}:${_dailyStart!.minute.toString().padLeft(2, '0')}'
-                              : 'Daily Start',
-                        ),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: const TimeOfDay(hour: 9, minute: 0),
-                          );
-                          if (time != null) setState(() => _dailyStart = time);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.access_time),
-                        label: Text(
-                          _dailyEnd != null
-                              ? '${_dailyEnd!.hour}:${_dailyEnd!.minute.toString().padLeft(2, '0')}'
-                              : 'Daily End',
-                        ),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: const TimeOfDay(hour: 21, minute: 0),
-                          );
-                          if (time != null) setState(() => _dailyEnd = time);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 4,
-                  children: [
-                    for (int day = 1; day <= 7; day++)
-                      FilterChip(
-                        label: Text(
-                          [
-                            'Mon',
-                            'Tue',
-                            'Wed',
-                            'Thu',
-                            'Fri',
-                            'Sat',
-                            'Sun',
-                          ][day - 1],
-                        ),
-                        selected: _selectedWeekDays.contains(day),
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              _selectedWeekDays.add(day);
-                            } else {
-                              _selectedWeekDays.remove(day);
-                            }
-                          });
-                        },
-                      ),
-                  ],
-                ),
-              ],
-
-              const Spacer(),
+            const Spacer(),
 
             // Progress indicator
             if (_isAdding) ...[
@@ -471,31 +509,30 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
                 ),
             ],
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              // Add button
-              ElevatedButton.icon(
-                icon: _isAdding
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.fingerprint),
-                label: Text(
-                  _isAdding ? 'Adding Fingerprint...' : 'Add Fingerprint',
-                ),
-                onPressed: _isAdding ? null : _startAddFingerprint,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                  textStyle: const TextStyle(fontSize: 16),
-                ),
+            // Add button
+            ElevatedButton.icon(
+              icon: _isAdding
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.fingerprint),
+              label: Text(
+                _isAdding ? 'Adding Fingerprint...' : 'Add Fingerprint',
               ),
-            ],
-          ),
+              onPressed: _isAdding ? null : _startAddFingerprint,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+                textStyle: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
         ),
       ),
     );

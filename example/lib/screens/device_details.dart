@@ -655,7 +655,6 @@ const SizedBox(height: 12),
                     await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => AddFingerprintScreen(
-                          device: widget.device,
                           auth: auth,
                         ),
                       ),

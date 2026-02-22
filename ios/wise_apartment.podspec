@@ -15,6 +15,7 @@ Flutter plugin providing BLE device scanning, pairing, and WiFi configuration fo
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.public_header_files = 'Classes/**/*.h'
+  s.preserve_paths = 'Classes/**/*.h'
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
 
