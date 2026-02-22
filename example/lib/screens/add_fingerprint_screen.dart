@@ -11,8 +11,6 @@ class AddFingerprintScreen extends StatefulWidget {
     super.key,
     required this.auth,
     this.defaultKeyGroupId = 901,
-
-    required DnaInfoModel device,
   });
 
   @override
@@ -37,10 +35,8 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
   bool _isAdding = false;
   String _statusMessage = '';
   double _progress = 0.0;
-
-  // Sample Base64 fingerprint data (replace with actual scanner data)
-  final String _sampleFingerprintData =
-      "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";
+  int _authTotal = 0;
+  int _authCount = 0;
 
   @override
   void initState() {
@@ -49,7 +45,7 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
     // Initialize action model for fingerprint (authorMode=0, addedKeyType=fingerprint)
     _actionModel = AddLockKeyActionModel(
-      authorMode: 0, // Enter fingerprint reading mode
+      authorMode: 0, // Enter fingerprint reading mode on lock
       addedKeyType: AddLockKeyActionModel.addedFingerprint, // Fingerprint = 1
       addedKeyGroupId: widget.defaultKeyGroupId,
       localRemoteMode: 1,
@@ -78,8 +74,10 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
     setState(() {
       _isAdding = true;
-      _statusMessage = 'Initializing...';
+      _statusMessage = 'Initializing fingerprint enrollment...';
       _progress = 0.0;
+      _authTotal = 0;
+      _authCount = 0;
     });
 
     try {
@@ -134,46 +132,60 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
         }
         return;
       }
-
-      // Build request with validated params
+      // - use addLockKeyStream for fingerprint enrollment
       final request = {
         ...widget.auth,
-        'fingerprintData': _sampleFingerprintData,
-        'keyGroupId': _actionModel.addedKeyGroupId,
-        'keyType': _actionModel.addedKeyType,
-        // Include all validated time params from action model
-        'authMode': _actionModel.authorMode ?? 0,
-        'validStartTime': _actionModel.validStartTime,
-        'validEndTime': _actionModel.validEndTime,
-        'validNumber': _actionModel.vaildNumber,
-        'weeks': _actionModel.week,
-        'dayStartTimes': _actionModel.dayStartTimes,
-        'dayEndTimes': _actionModel.dayEndTimes,
-        'vaildMode': _actionModel.vaildMode,
+        'action': _actionModel.toMap(), // Send action model with authorMode=0
       };
 
-      log('[AddFingerprintScreen] Starting fingerprint addition: $request');
+      log('[AddFingerprintScreen] Starting fingerprint enrollment: $request');
 
-      // Start listening to the stream
-      final stream = _plugin.addFingerprintKeyStream;
+      // Start listening to the addLockKey stream
+      final stream = _plugin.addLockKeyStream;
       final streamSubscription = stream.listen(
         (event) {
           log('[AddFingerprintScreen] Stream event: $event');
 
           final type = event['type'] as String?;
           final message = event['message'] as String? ?? '';
-          final progress = (event['progress'] as num?)?.toDouble() ?? 0.0;
+          final body = event['body'] as Map<String, dynamic>?;
+
+          // Extract authTotal and authCount from response body
+          if (body != null) {
+            _authTotal = (body['authTotal'] as num?)?.toInt() ?? _authTotal;
+            _authCount = (body['authCount'] as num?)?.toInt() ?? _authCount;
+          }
+
+          // Calculate progress based on enrollment steps
+          double progress = 0.0;
+          if (_authTotal > 0) {
+            progress = _authCount / _authTotal;
+          }
 
           setState(() {
-            _statusMessage = message;
             _progress = progress;
+
+            // Build progress message
+            if (type == 'addLockKeyChunk' && _authTotal > 0) {
+              if (_authTotal == 255) {
+                // Special case: unlimited/unknown scans
+                _statusMessage = 'Please place finger on sensor ($_authCount)';
+              } else {
+                // Normal case: show progress (e.g., "2/3")
+                _statusMessage =
+                    'Please place finger on sensor ($_authCount/$_authTotal)';
+              }
+            } else {
+              _statusMessage = message;
+            }
           });
 
           if (type == 'addLockKeyDone') {
-            // Success!
+            // Success - all fingerprint scans completed!
             setState(() {
               _isAdding = false;
-              _statusMessage = 'Fingerprint added successfully!';
+              _statusMessage =
+                  'Fingerprint enrolled successfully! ($_authCount/$_authTotal)';
               _progress = 1.0;
             });
 
@@ -200,8 +212,8 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
         },
       );
 
-      // Start the stream operation
-      await _plugin.startAddFingerprintKeyStream(request);
+      // Start the addLockKey stream operation
+      await _plugin.startAddLockKeyStream(widget.auth, _actionModel);
     } catch (e) {
       log('[AddFingerprintScreen] Exception: $e');
       setState(() {
@@ -215,16 +227,38 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add Fingerprint'), centerTitle: true),
-      body: SingleChildScrollView(
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          padding:  const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Fingerprint icon
-              const Icon(Icons.fingerprint, size: 80, color: Colors.blue),
-              const SizedBox(height: 24),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Fingerprint icon
+            const Icon(Icons.fingerprint, size: 80, color: Colors.blue),
+            const SizedBox(height: 16),
+
+            // Instruction card
+            Card(
+              color: Colors.blue.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'You will be prompted to scan your fingerprint multiple times. Keep your finger on the sensor until each scan completes.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
 
               // User ID input
               TextField(
@@ -396,36 +430,46 @@ class _AddFingerprintScreenState extends State<AddFingerprintScreen> {
 
               const Spacer(),
 
-              // Progress indicator
-              if (_isAdding) ...[
-                LinearProgressIndicator(value: _progress),
-                const SizedBox(height: 8),
-                Text(
-                  _statusMessage,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14),
+            // Progress indicator
+            if (_isAdding) ...[
+              LinearProgressIndicator(value: _progress),
+              const SizedBox(height: 8),
+              Text(
+                _statusMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+              const SizedBox(height: 4),
+              if (_authTotal > 0)
                 Text(
-                  '${(_progress * 100).toStringAsFixed(0)}%',
+                  'Enrollment Progress: $_authCount/$_authTotal scans',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
                 ),
-              ] else ...[
-                if (_statusMessage.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      _statusMessage,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _statusMessage.contains('success')
-                            ? Colors.green
-                            : Colors.red,
-                      ),
+              Text(
+                '${(_progress * 100).toStringAsFixed(0)}%',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ] else ...[
+              if (_statusMessage.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    _statusMessage,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _statusMessage.contains('success')
+                          ? Colors.green
+                          : Colors.red,
                     ),
                   ),
-              ],
+                ),
+            ],
 
               const SizedBox(height: 16),
 
