@@ -74,7 +74,9 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       if (event is Map) {
         final Map<String, dynamic> m = Map<String, dynamic>.from(event);
         final String? type = m['type'] is String ? m['type'] as String : null;
-        if (type == 'wifiRegistration') {
+        if (type == 'wifiRegistration' ||
+            type == 'wifiRegistrationDone' ||
+            type == 'wifiRegistrationError') {
           return m;
         }
         // ignore other event types
@@ -422,6 +424,25 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
       'body': wifiJson,
     };
     return simulated;
+  }
+
+  @override
+  Future<Map<String, dynamic>> registerWifiStream(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) async {
+    try {
+      final args = {'wifi': wifiJson, 'dna': dna};
+      final Map<String, dynamic>? result = await methodChannel
+          .invokeMapMethod<String, dynamic>('regWifiStream', args);
+      if (result != null) return result;
+    } catch (e) {
+      debugPrint('registerWifiStream error: $e');
+      rethrow;
+    }
+
+    // Platform not available or returned null
+    return {'streaming': false, 'message': 'Platform not available'};
   }
 
   @override

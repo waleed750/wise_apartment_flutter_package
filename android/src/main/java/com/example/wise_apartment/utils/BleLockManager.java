@@ -66,6 +66,15 @@ public class BleLockManager {
         void onError(Map<String, Object> event);
     }
 
+    /**
+     * Callback interface for streaming WiFi registration events.
+     */
+    public interface WifiRegistrationStreamCallback {
+        void onChunk(Map<String, Object> event);
+        void onDone(Map<String, Object> event);
+        void onError(Map<String, Object> event);
+    }
+
     // Helper: convert vendor Response<?> to stable Map<String,Object>
     private Map<String, Object> responseToMap(Response<?> response, Object bodyObj) {
         Map<String, Object> m = new HashMap<>();
@@ -925,6 +934,128 @@ public class BleLockManager {
         } catch (Throwable t) {
             Log.e(TAG, "Exception calling rfModuleReg", t);
             postResultError(result, "ERROR", t.getMessage(), null);
+        }
+    }
+
+    /**
+     * Streaming variant of registerWifi. Invokes the SDK and reports
+     * completion/errors via the provided callback. The plugin layer should
+     * acknowledge the method call immediately and forward events to Flutter
+     * through the EventChannel.
+     */
+    public void registerWifiStream(Map<String, Object> args, final WifiRegistrationStreamCallback callback) {
+        Log.d(TAG, "registerWifiStream called with args: " + args);
+
+        String wifiJson = null;
+        if (args != null && args.containsKey("wifi")) {
+            Object w = args.get("wifi");
+            if (w instanceof String) {
+                wifiJson = (String) w;
+            } else {
+                wifiJson = w != null ? w.toString() : "";
+            }
+        }
+
+        if (wifiJson == null) {
+            if (callback != null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("type", "wifiRegistrationError");
+                err.put("message", "Missing wifi payload (wifi) in args");
+                callback.onError(err);
+            }
+            return;
+        }
+
+        // Build baseAuth same as registerWifi
+        com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction baseAuth = null;
+        try {
+            String macFromArgs = null;
+            if (args != null) {
+                Object m = args.get("mac");
+                if (m instanceof String) macFromArgs = (String) m;
+                else if (args.containsKey("device") && args.get("device") instanceof Map) {
+                    Object dev = ((Map) args.get("device")).get("mac");
+                    if (dev instanceof String) macFromArgs = (String) dev;
+                }
+            }
+
+            if (macFromArgs != null && !macFromArgs.isEmpty()) {
+                baseAuth = new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder()
+                        .mac(macFromArgs)
+                        .build();
+            } else if (args != null && args.containsKey("dna") && args.get("dna") instanceof Map) {
+                Map dnaMap = (Map) args.get("dna");
+                com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder b =
+                        new com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction.Builder();
+
+                Object v;
+                v = dnaMap.get("protocolVer");
+                if (v instanceof Integer) b.bleProtocolVer((Integer) v);
+                else if (v instanceof String) { try { b.bleProtocolVer(Integer.parseInt((String) v)); } catch (Exception ignored) {} }
+
+                v = dnaMap.get("authorizedRoot");
+                if (v instanceof String) b.authCode((String) v);
+
+                v = dnaMap.get("dnaAes128Key");
+                if (v instanceof String) b.dnaKey((String) v);
+
+                v = dnaMap.get("mac");
+                if (v instanceof String) b.mac((String) v);
+
+                b.keyGroupId(900);
+                baseAuth = b.build();
+            } else {
+                baseAuth = PluginUtils.createAuthAction(args);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to build baseAuth from dna map or mac (stream), falling back", t);
+            baseAuth = PluginUtils.createAuthAction(args);
+        }
+
+        BlinkyAction action = new BlinkyAction();
+        action.setBaseAuthAction(baseAuth);
+
+        try {
+            bleClient.rfModuleReg(action, wifiJson, new FunCallback() {
+                @Override
+                public void onResponse(Response rfResp) {
+                    try {
+                        Map<String, Object> out = responseToMap(rfResp, null);
+                        if (callback != null) {
+                            Map<String, Object> done = new HashMap<>();
+                            done.put("type", "wifiRegistrationDone");
+                            done.put("response", out);
+                            callback.onDone(done);
+                        }
+                    } catch (Throwable t) {
+                        if (callback != null) {
+                            Map<String, Object> err = new HashMap<>();
+                            err.put("type", "wifiRegistrationError");
+                            err.put("message", t.getMessage());
+                            callback.onError(err);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "registerWifiStream rfModuleReg failed", t);
+                    if (callback != null) {
+                        Map<String, Object> err = new HashMap<>();
+                        err.put("type", "wifiRegistrationError");
+                        err.put("message", t.getMessage());
+                        callback.onError(err);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling rfModuleReg in registerWifiStream", t);
+            if (callback != null) {
+                Map<String, Object> err = new HashMap<>();
+                err.put("type", "wifiRegistrationError");
+                err.put("message", t.getMessage());
+                callback.onError(err);
+            }
         }
     }
 

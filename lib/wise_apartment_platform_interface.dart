@@ -55,6 +55,14 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
     Map<String, dynamic> dna,
   );
 
+  /// Starts streaming WiFi registration. When EventChannel listener is active,
+  /// native calls the SDK immediately and returns acknowledgement, then emits
+  /// updates via `wifiRegistrationStream`.
+  Future<Map<String, dynamic>> registerWifiStream(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  );
+
   // BLE connect/disconnect helpers (native implementations may use callbacks)
   Future<bool> connectBle(Map<String, dynamic> auth);
   Future<bool> disconnectBle();

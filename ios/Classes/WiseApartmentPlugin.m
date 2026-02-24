@@ -295,6 +295,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     else if ([@"regWifi" isEqualToString:method]) {
         [self handleRegisterWifi:args result:result];
     }
+    else if ([@"regWifiStream" isEqualToString:method]) {
+        [self handleRegisterWifiStream:args result:result];
+    }
     // BLE Connection
     else if ([@"connectBle" isEqualToString:method]) {
         [self handleConnectBle:args result:result];
@@ -524,6 +527,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
                 if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
                     NSDictionary *m = (NSDictionary *)obj;
                     param = [[SHBLENetworkConfigParam alloc] init];
+                    // Request SDK callbacks so notification events are delivered
+                    param.needListenCallbackStatus = YES;
                     param.lockMac = [mac lowercaseString];
                     id ct = m[@"configType"];
                     if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
@@ -624,10 +629,7 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         return;
     }
     
-
-    // No notification observer registered; only SDK completion result will be returned.
-
-    // Call the new SDK API (completion block only returns statusCode + reason)
+    // Non-streaming: Call SDK and return completion result via MethodChannel
     [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {
         dispatch_async(dispatch_get_main_queue(), ^{
             BOOL ok = (statusCode == KSHStatusCode_Success);
@@ -645,6 +647,166 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
             });
         });
     }];
+}
+
+- (void)handleRegisterWifiStream:(id)args result:(FlutterResult)result {
+    NSLog(@"[WiseApartmentPlugin] handleRegisterWifiStream called with args: %@", args);
+    
+    // Streaming requires EventChannel listener
+    if (![self.eventEmitter hasActiveListener]) {
+        NSLog(@"[WiseApartmentPlugin] No EventChannel listener - regWifiStream requires active listener");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"EventChannel listener not attached"});
+        return;
+    }
+    
+    NSDictionary *params = [args isKindOfClass:[NSDictionary class]] ? args : nil;
+    if (!params) {
+        NSLog(@"[WiseApartmentPlugin] Invalid parameters for regWifiStream");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Invalid parameters - expected Map"});
+        return;
+    }
+
+    // Per requirement: initialize addHelper before any steps.
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    // Extract data from Dart structure: {'wifi': wifiJson, 'dna': dna}
+    NSString *wifiJson = params[@"wifi"];
+    NSDictionary *dna = params[@"dna"];
+
+    if (!wifiJson) {
+        NSLog(@"[WiseApartmentPlugin] Missing wifi parameter");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"wifi parameter is required"});
+        return;
+    }
+
+    if (![dna isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"[WiseApartmentPlugin] Missing or invalid dna parameter");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"dna parameter is required"});
+        return;
+    }
+
+    // Extract mac from dna dictionary
+    NSString *mac = dna[@"mac"];
+    if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
+        // Attempt to infer mac from wifiJson as fallback
+        if ([wifiJson isKindOfClass:[NSString class]]) {
+            NSData *data = [(NSString *)wifiJson dataUsingEncoding:NSUTF8StringEncoding];
+            if (data) {
+                id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if ([obj isKindOfClass:[NSDictionary class]]) {
+                    id m = ((NSDictionary *)obj)[@"lockMac"] ?: ((NSDictionary *)obj)[@"mac"];
+                    if ([m isKindOfClass:[NSString class]]) {
+                        mac = (NSString *)m;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!mac || ![mac isKindOfClass:[NSString class]] || mac.length == 0) {
+        result(@{ @"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"code": @-1, @"message": @"mac is required" });
+        return;
+    }
+
+    // Prepare: set device AES key before calling SDK methods (prevents 228 error)
+    if (![self prepare:dna]) {
+        result(@{ @"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"code": @228, @"message": @"Device not prepared: provide dnaKey/authCode or call addDevice first" });
+        return;
+    }
+
+    // Build SHBLENetworkConfigParam (reuse same parsing logic as handleRegisterWifi)
+    SHBLENetworkConfigParam *param = nil;
+    if ([wifiJson isKindOfClass:[NSString class]]) {
+        NSData *data = [((NSString *)wifiJson) dataUsingEncoding:NSUTF8StringEncoding];
+        if (data) {
+            NSError *jsonErr = nil;
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
+            if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
+                NSDictionary *m = (NSDictionary *)obj;
+                param = [[SHBLENetworkConfigParam alloc] init];
+                // Request SDK callbacks so notification events are delivered
+                param.needListenCallbackStatus = YES;
+                param.lockMac = [mac lowercaseString];
+                id ct = m[@"configType"];
+                if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
+                id ut = m[@"updateTokenId"];
+                if ([ut respondsToSelector:@selector(boolValue)]) param.updateTokenId = [ut boolValue];
+                id token = m[@"tokenId"];
+                if ([token isKindOfClass:[NSString class]]) param.tokenId = (NSString *)token;
+                id ssid = m[@"ssid"];
+                if ([ssid isKindOfClass:[NSString class]]) param.ssid = (NSString *)ssid;
+                id pwd = m[@"password"];
+                if ([pwd isKindOfClass:[NSString class]]) param.password = (NSString *)pwd;
+                id host = m[@"host"];
+                if ([host isKindOfClass:[NSString class]]) param.host = (NSString *)host;
+                id port = m[@"port"];
+                if ([port respondsToSelector:@selector(intValue)]) param.port = [port intValue];
+                id ag = m[@"autoGetIP"];
+                if ([ag respondsToSelector:@selector(boolValue)]) param.autoGetIP = [ag boolValue];
+                id ip = m[@"ip"];
+                if ([ip isKindOfClass:[NSString class]]) param.ip = (NSString *)ip;
+                id sub = m[@"subnetwork"];
+                if ([sub isKindOfClass:[NSString class]]) param.subnetwork = (NSString *)sub;
+                id router = m[@"routerIP"];
+                if ([router isKindOfClass:[NSString class]]) param.routerIP = (NSString *)router;
+            } else {
+                // Try legacy pipe-delimited format
+                NSString *rawWifi = (NSString *)wifiJson;
+                NSString *unescaped = [rawWifi stringByReplacingOccurrencesOfString:@"\\\"" withString:@"\""];
+                unescaped = [unescaped stringByReplacingOccurrencesOfString:@"\\\\" withString:@"\\"];
+
+                if ([unescaped containsString:@"|"]) {
+                    SHBLENetworkConfigParam *parsed = [self wa_parseRfCode:unescaped lockMac:mac];
+                    if (parsed != nil) {
+                        param = parsed;
+                    }
+                } else {
+                    SHBLENetworkConfigParam *parsed = [self wa_parseRfCode:(NSString *)wifiJson lockMac:mac];
+                    if (parsed != nil) param = parsed;
+                }
+            }
+        }
+    }
+
+    if (!param) {
+        NSLog(@"[WiseApartmentPlugin] Failed to parse WiFi configuration parameters for regWifiStream");
+        result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Failed to parse WiFi configuration"});
+        return;
+    }
+    
+    // Ensure SDK callbacks requested
+    param.needListenCallbackStatus = YES;
+    
+    NSLog(@"[WiseApartmentPlugin] Starting streaming WiFi registration - calling configWiFiLockNetworkWithParam");
+    
+    // Start SDK call before returning ack
+    [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {
+        // Map completion into a final event and emit via EventEmitter
+        dispatch_async(dispatch_get_main_queue(), ^{
+            BOOL ok = (statusCode == KSHStatusCode_Success);
+            NSString *lockMacOut = macOut ?: [mac lowercaseString];
+            NSDictionary *doneEvent = @{
+                @"type": @"wifiRegistrationDone",
+                @"success": @(ok),
+                @"isSuccessful": @(ok),
+                @"isError": @(!ok),
+                @"code": @((NSInteger)statusCode),
+                @"message": reason ?: @"",
+                @"lockMac": lockMacOut,
+                @"wifiStatus": @(wifiStatus),
+                @"rfModuleMac": rfModuleMac ?: @"",
+                @"originalRfModuleMac": originalRfModuleMac ?: @"",
+            };
+            [self.eventEmitter emitEvent:doneEvent];
+            NSLog(@"[WiseApartmentPlugin] Emitted wifiRegistrationDone event via EventEmitter");
+        });
+    }];
+
+    // Immediate acknowledgement for streaming path
+    NSLog(@"[WiseApartmentPlugin] regWifiStream - returning immediate ack (streaming: YES)");
+    result(@{ @"streaming": @YES, @"message": @"WiFi registration started (streaming)" });
 }
 
 // BLE Connection

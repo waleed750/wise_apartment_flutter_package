@@ -481,6 +481,53 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
         }
         break;
+      case "regWifiStream":
+        if (lockManager != null) {
+          if (eventSink != null) {
+            // Start streaming variant and forward events to EventChannel
+            Log.d(TAG, "regWifiStream called - starting streaming WiFi registration");
+            lockManager.registerWifiStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.WifiRegistrationStreamCallback() {
+              @Override
+              public void onChunk(final Map<String, Object> chunkEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(chunkEvent);
+                  }
+                });
+              }
+
+              @Override
+              public void onDone(final Map<String, Object> doneEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) eventSink.success(doneEvent);
+                  }
+                });
+              }
+
+              @Override
+              public void onError(final Map<String, Object> errorEvent) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      eventSink.error(String.valueOf(errorEvent.get("code")), String.valueOf(errorEvent.get("message")), errorEvent);
+                    }
+                  }
+                });
+              }
+            });
+            // Acknowledge immediately — events will be emitted via EventChannel
+            safeResult.success(java.util.Collections.singletonMap("streaming", true));
+          } else {
+            safeResult.error("NO_LISTENER", "EventChannel listener not attached", null);
+          }
+        } else {
+          safeResult.error("INIT_ERROR", "Lock manager not initialized", null);
+        }
+        break;
       case "addLockKey":
         if (lockManager != null) {
           lockManager.addLockKey((Map<String, Object>) call.arguments, safeResult);

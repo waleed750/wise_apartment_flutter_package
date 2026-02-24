@@ -122,6 +122,16 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.registerWifi(wifiConfig, dna);
   }
 
+  /// Starts streaming WiFi registration. Native calls SDK immediately and returns ack,
+  /// then emits events (wifiRegistration, wifiRegistrationDone) via wifiRegistrationStream.
+  /// Must listen to `wifiRegistrationStream` before calling this method.
+  Future<Map<String, dynamic>> registerWifiStream(
+    String wifiConfig,
+    Map<String, dynamic> dna,
+  ) {
+    return WiseApartmentPlatform.instance.registerWifiStream(wifiConfig, dna);
+  }
+
   /// Add a key to the lock. `auth` should contain auth/DNA fields; `params`
   /// contains action-specific parameters required by the native SDK.
   Future<Map<String, dynamic>> addLockKey(
