@@ -28,10 +28,94 @@ class WifiRegistrationEvent {
 
   /// Creates a [WifiRegistrationEvent] from a Map received from native platform
   factory WifiRegistrationEvent.fromMap(Map<String, dynamic> map) {
+    // Extract status code - check multiple fields based on event type
+    int statusCode;
+    String? providedMessage;
+
+    // For wifiRegistration events: use 'status' field
+    if (map.containsKey('status')) {
+      statusCode = (map['status'] as num?)?.toInt() ?? 0;
+      providedMessage = map['statusMessage'] as String?;
+    }
+    // For wifiRegistrationDone events: use 'wifiStatus' or map 'code' to status
+    else if (map.containsKey('wifiStatus')) {
+      statusCode = (map['wifiStatus'] as num?)?.toInt() ?? 0;
+      providedMessage = map['message'] as String?;
+    }
+    // Handle error codes (e.g., -100005 for timeout)
+    else if (map.containsKey('code')) {
+      final code = (map['code'] as num?)?.toInt() ?? 0;
+      providedMessage = map['message'] as String?;
+
+      // Map known error codes to WiFi status codes
+      if (code == 0 && (map['success'] == true || map['isError'] == 0)) {
+        // Success - use wifiStatus if available, otherwise assume cloud connected
+        statusCode =
+            (map['wifiStatus'] as num?)?.toInt() ?? statusCloudConnected;
+      } else if (code == -100005 || providedMessage?.contains('超时') == true) {
+        statusCode = statusTimeout; // 0x07
+      } else if (code != 0) {
+        // Other error codes - try to map based on message or default to timeout
+        if (providedMessage?.contains('密码') == true ||
+            providedMessage?.toLowerCase().contains('password') == true) {
+          statusCode = statusIncorrectPassword;
+        } else if (providedMessage?.contains('服务器') == true ||
+            providedMessage?.toLowerCase().contains('server') == true) {
+          statusCode = statusServerConnectionFailed;
+        } else if (providedMessage?.contains('授权') == true ||
+            providedMessage?.toLowerCase().contains('author') == true) {
+          statusCode = statusDeviceNotAuthorized;
+        } else {
+          statusCode = statusTimeout; // Default error to timeout
+        }
+      } else {
+        statusCode = 0;
+      }
+    } else {
+      statusCode = 0;
+      providedMessage = null;
+    }
+
+    // Determine status message - use provided message or generate from status code
+    final String finalMessage;
+    if (providedMessage != null &&
+        providedMessage.isNotEmpty &&
+        providedMessage != 'Unknown status') {
+      finalMessage = providedMessage;
+    } else {
+      // Generate message from status code
+      switch (statusCode) {
+        case statusBindingInProgress:
+          finalMessage = 'WiFi binding in progress';
+          break;
+        case statusRouterConnected:
+          finalMessage = 'WiFi module connected to router';
+          break;
+        case statusCloudConnected:
+          finalMessage = 'Successfully connected to cloud';
+          break;
+        case statusIncorrectPassword:
+          finalMessage = 'Incorrect WiFi password';
+          break;
+        case statusTimeout:
+          finalMessage = 'Configuration timeout';
+          break;
+        case statusServerConnectionFailed:
+          finalMessage = 'Server connection failed';
+          break;
+        case statusDeviceNotAuthorized:
+          finalMessage = 'Device not authorized';
+          break;
+        default:
+          finalMessage = 'Unknown status';
+      }
+    }
+
     return WifiRegistrationEvent(
-      status: (map['status'] as num?)?.toInt() ?? 0,
-      statusMessage: map['statusMessage'] as String? ?? 'Unknown status',
-      moduleMac: map['moduleMac'] as String? ?? '',
+      status: statusCode,
+      statusMessage: finalMessage,
+      moduleMac:
+          map['moduleMac'] as String? ?? map['rfModuleMac'] as String? ?? '',
       lockMac: map['lockMac'] as String? ?? '',
       timestamp: DateTime.now(),
     );

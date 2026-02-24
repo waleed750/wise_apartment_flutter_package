@@ -527,8 +527,6 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
                 if (jsonErr == nil && [obj isKindOfClass:[NSDictionary class]]) {
                     NSDictionary *m = (NSDictionary *)obj;
                     param = [[SHBLENetworkConfigParam alloc] init];
-                    // Request SDK callbacks so notification events are delivered
-                    param.needListenCallbackStatus = YES;
                     param.lockMac = [mac lowercaseString];
                     id ct = m[@"configType"];
                     if ([ct respondsToSelector:@selector(intValue)]) param.configType = [ct intValue];
@@ -628,6 +626,9 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         result(@{@"success": @NO, @"isSuccessful": @NO, @"isError": @YES, @"message": @"Failed to parse WiFi configuration"});
         return;
     }
+    
+    // Non-streaming: Disable intermediate callbacks, only final completion needed
+    param.needListenCallbackStatus = NO;
     
     // Non-streaming: Call SDK and return completion result via MethodChannel
     [HXBluetoothLockHelper configWiFiLockNetworkWithParam:param completionBlock:^(KSHStatusCode statusCode, NSString *reason, NSString *macOut, int wifiStatus, NSString *rfModuleMac, NSString *originalRfModuleMac) {

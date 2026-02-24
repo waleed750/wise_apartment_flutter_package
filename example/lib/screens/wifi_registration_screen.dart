@@ -161,6 +161,18 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
             debugPrint('   Module MAC: ${event.moduleMac}');
             debugPrint('   Lock MAC: ${event.lockMac}');
 
+            // Filter: Only process events with known status codes or terminal states
+            // Skip events with status 0x00 unless they are terminal (done) events with error info
+            final bool shouldProcess =
+                event.status != 0 ||
+                type == 'wifiRegistrationDone' ||
+                event.isTerminal;
+
+            if (!shouldProcess) {
+              debugPrint('   ⏭️  Skipping event with unknown status code');
+              return;
+            }
+
             setState(() {
               _latestEvent = event;
               _events.insert(0, event);
