@@ -217,6 +217,7 @@
                     @"power": @(power),
                     @"unlockingDuration": @(unlockingDuration)
                 }];
+                // asdas
                 
                 if (statusCode == KSHStatusCode_Success) {
                     [one success:response];
