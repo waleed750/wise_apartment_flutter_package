@@ -245,7 +245,23 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     // Verify it was set
     BOOL hasListener = [self.eventEmitter hasActiveListener];
     NSLog(@"[WiseApartmentPlugin] Event sink registered. hasActiveListener: %@", hasListener ? @"YES" : @"NO");
-    
+
+    // If Flutter passed args when subscribing, and they contain a wifi payload,
+    // call the native registerWifi handler so that the stream subscription
+    // triggers the native registration process.
+    if (arguments != nil && [arguments isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *args = (NSDictionary *)arguments;
+        if (args[@"wifi"] != nil) {
+            NSLog(@"[WiseApartmentPlugin] onListen received wifi args - starting native registerWifi");
+            // Call handleRegisterWifi:result: but ignore the immediate result (events will be emitted via eventEmitter)
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self handleRegisterWifi:args result:^(id _Nullable r) {
+                    // no-op - one-shot result is ignored when starting from stream
+                }];
+            });
+        }
+    }
+
     return nil;
 }
 

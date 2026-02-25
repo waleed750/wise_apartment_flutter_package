@@ -66,6 +66,35 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       public void onListen(Object arguments, EventChannel.EventSink events) {
         eventSink = events;
         Log.d(TAG, "EventChannel listener attached");
+
+        // If subscribe passed arguments (wifi/dna), start native registerWifi
+        try {
+          if (arguments instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> args = (Map<String, Object>) arguments;
+            if (args.containsKey("wifi")) {
+              if (lockManager != null) {
+                Log.d(TAG, "EventChannel onListen received wifi args - starting native registerWifi");
+                final Result noop = new Result() {
+                  @Override
+                  public void success(Object o) { /* no-op */ }
+
+                  @Override
+                  public void error(String s, String s1, Object o) { /* no-op */ }
+
+                  @Override
+                  public void notImplemented() { /* no-op */ }
+                };
+                final OneShotResult safeResult = new OneShotResult(noop, TAG);
+                lockManager.registerWifi(args, safeResult);
+              } else {
+                Log.w(TAG, "lockManager not initialized - cannot start registerWifi from stream onListen");
+              }
+            }
+          }
+        } catch (Throwable t) {
+          Log.w(TAG, "Failed to start registerWifi from EventChannel onListen", t);
+        }
       }
 
       @Override

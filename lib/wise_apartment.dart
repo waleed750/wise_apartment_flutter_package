@@ -312,6 +312,19 @@ class WiseApartment {
     return WiseApartmentPlatform.instance.wifiRegistrationStream;
   }
 
+  /// Subscribe to a WiFi registration stream and start native registration
+  /// immediately with the provided `wifiJson` and `dna` map. The native
+  /// side will begin the registration when the Dart listener attaches.
+  Stream<Map<String, dynamic>> wifiRegistrationStreamWithArgs(
+    String wifiJson,
+    Map<String, dynamic> dna,
+  ) {
+    return WiseApartmentPlatform.instance.wifiRegistrationStreamWithArgs(
+      wifiJson,
+      dna,
+    );
+  }
+
   /// Stream of RF sign registration results from the device.
   /// Emits events as the device progresses through RF module registration.
   ///
