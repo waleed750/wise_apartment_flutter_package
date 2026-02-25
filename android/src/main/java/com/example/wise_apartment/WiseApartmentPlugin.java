@@ -75,23 +75,23 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
                 if (args.containsKey("wifi")) {
                   if (lockManager != null) {
                     Log.d(TAG, "EventChannel onListen received wifi args - starting native registerWifi (stream)");
-                    lockManager.registerWifi((Map<String, Object>) args, new com.example.wise_apartment.utils.BleLockManager.WifiRegistrationStreamCallback() {
+                    lockManager.registerWifiStream(args, new BleLockManager.WifiRegistrationStreamCallback() {
                       @Override
-                      public void onEvent(final Map<String, Object> ev) {
+                      public void onEvent(final Map<String, Object> event) {
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
                           @Override
                           public void run() {
-                            if (eventSink != null) eventSink.success(ev);
+                            if (eventSink != null) eventSink.success(event);
                           }
                         });
                       }
 
                       @Override
-                      public void onError(final Map<String, Object> error) {
+                      public void onError(final Map<String, Object> errorEvent) {
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
                           @Override
                           public void run() {
-                            if (eventSink != null) eventSink.success(error);
+                            if (eventSink != null) eventSink.success(errorEvent);
                           }
                         });
                       }
@@ -563,31 +563,33 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       case "regWifi":
         if (lockManager != null) {
           if (eventSink != null) {
-            // Start streaming registration and reply that streaming started
-            lockManager.registerWifi((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.WifiRegistrationStreamCallback() {
+            Log.d(TAG, "regWifi invoked while EventChannel listener active - starting streaming registerWifi");
+            lockManager.registerWifiStream((Map<String, Object>) call.arguments, new BleLockManager.WifiRegistrationStreamCallback() {
               @Override
-              public void onEvent(final Map<String, Object> ev) {
+              public void onEvent(final Map<String, Object> event) {
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
                   @Override
                   public void run() {
-                    if (eventSink != null) eventSink.success(ev);
+                    if (eventSink != null) eventSink.success(event);
                   }
                 });
               }
 
               @Override
-              public void onError(final Map<String, Object> error) {
+              public void onError(final Map<String, Object> errorEvent) {
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
                   @Override
                   public void run() {
-                    if (eventSink != null) eventSink.success(error);
+                    if (eventSink != null) eventSink.success(errorEvent);
                   }
                 });
               }
             });
-            safeResult.success(java.util.Collections.singletonMap("streaming", true));
+            Map<String, Object> started = new java.util.HashMap<>();
+            started.put("streaming", true);
+            started.put("message", "registerWifi stream started - listen to EventChannel");
+            safeResult.success(started);
           } else {
-            // Fallback: use the existing one-shot registerWifi that returns a Result
             lockManager.registerWifi((Map<String, Object>) call.arguments, safeResult);
           }
         } else {

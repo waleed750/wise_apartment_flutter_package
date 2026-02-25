@@ -68,13 +68,14 @@ public class BleLockManager {
     }
 
     /**
-     * Callback interface for WiFi registration streaming events.
-     * Implementations should treat each call as an incremental event
-     * and MUST NOT consider the stream closed when `onError` is called.
+     * Callback used to stream WiFi registration / RF-module registration
+     * events back to the plugin layer. Implementations should treat each
+     * invocation as an incremental event and must not assume the stream
+     * is closed after a single call.
      */
     public interface WifiRegistrationStreamCallback {
         void onEvent(Map<String, Object> event);
-        void onError(Map<String, Object> error);
+        void onError(Map<String, Object> errorEvent);
     }
 
     // Helper: convert vendor Response<?> to stable Map<String,Object>
@@ -960,13 +961,13 @@ public class BleLockManager {
     }
 
     /**
-     * Streaming variant of registerWifi. Sends incremental events via the
-     * provided callback. The callback should be used to emit both
-     * intermediate and final responses and MUST NOT be used to close the
-     * overall EventChannel stream from the Java side.
+     * Start a streaming WiFi/RF-module registration. Emits zero or more
+     * incremental events via the provided callback. This method does not
+     * complete/close the stream — callers should continue listening until
+     * they choose to cancel the EventChannel subscription.
      */
-    public void registerWifi(final Map<String, Object> args, final WifiRegistrationStreamCallback callback) {
-        Log.d(TAG, "registerWifi(stream) called with args: " + args);
+    public void registerWifiStream(Map<String, Object> args, final WifiRegistrationStreamCallback callback) {
+        Log.d(TAG, "registerWifiStream called with args: " + args);
 
         String wifiJson = null;
         if (args != null && args.containsKey("wifi")) {
@@ -974,7 +975,7 @@ public class BleLockManager {
             if (w instanceof String) {
                 wifiJson = (String) w;
             } else {
-                wifiJson = w != null ? w.toString() : "";
+                wifiJson = w != null ? w.toString() : null;
             }
         }
 
@@ -1047,11 +1048,11 @@ public class BleLockManager {
                             String moduleMac = rfResult.getModuleMac() != null ? rfResult.getModuleMac() : "";
                             String originalModuleMac = rfResult.getOriginalModuleMac() != null ? rfResult.getOriginalModuleMac() : "";
 
-                            Map<String, Object> rfEvent = new HashMap<>();
-                            rfEvent.put("type", "rfSignRegistration");
-                            rfEvent.put("operMode", operMode);
-                            rfEvent.put("moduleMac", moduleMac);
-                            rfEvent.put("originalModuleMac", originalModuleMac);
+                            Map<String, Object> event = new HashMap<>();
+                            event.put("type", "rfSignRegistration");
+                            event.put("operMode", operMode);
+                            event.put("moduleMac", moduleMac);
+                            event.put("originalModuleMac", originalModuleMac);
 
                             String statusMessage;
                             switch (operMode) {
@@ -1074,14 +1075,15 @@ public class BleLockManager {
                                     statusMessage = "Unknown operation mode: 0x" + Integer.toHexString(operMode);
                                     break;
                             }
-                            rfEvent.put("statusMessage", statusMessage);
+                            event.put("statusMessage", statusMessage);
 
-                            if (callback != null) callback.onEvent(rfEvent);
+                            if (callback != null) callback.onEvent(event);
+                        } else {
+                            Map<String, Object> out = responseToMap(rfResp, null);
+                            if (callback != null) callback.onEvent(out);
                         }
-
-                        Map<String, Object> out = responseToMap(rfResp, null);
-                        if (callback != null) callback.onEvent(out);
                     } catch (Throwable t) {
+                        Log.e(TAG, "registerWifiStream onResponse processing failed", t);
                         if (callback != null) {
                             Map<String, Object> err = new HashMap<>();
                             err.put("type", "wifiRegistrationError");
@@ -1093,7 +1095,7 @@ public class BleLockManager {
 
                 @Override
                 public void onFailure(Throwable t) {
-                    Log.e(TAG, "rfModuleReg failed", t);
+                    Log.e(TAG, "rfModuleReg failed (stream)", t);
                     if (callback != null) {
                         Map<String, Object> err = new HashMap<>();
                         err.put("type", "wifiRegistrationError");
@@ -1103,7 +1105,7 @@ public class BleLockManager {
                 }
             });
         } catch (Throwable t) {
-            Log.e(TAG, "Exception calling rfModuleReg", t);
+            Log.e(TAG, "Exception calling rfModuleReg (stream)", t);
             if (callback != null) {
                 Map<String, Object> err = new HashMap<>();
                 err.put("type", "wifiRegistrationError");
