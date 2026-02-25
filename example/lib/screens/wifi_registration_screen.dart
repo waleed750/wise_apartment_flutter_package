@@ -23,8 +23,11 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
   final _plugin = WiseApartment();
   bool _loading = false;
   StreamSubscription<Map<String, dynamic>>? _streamSubscription;
+  StreamSubscription<Map<String, dynamic>>? _rfSignStreamSubscription;
   List<WifiRegistrationEvent> _events = [];
   WifiRegistrationEvent? _latestEvent;
+  List<Map<String, dynamic>> _rfSignEvents = [];
+  Map<String, dynamic>? _latestRfSignEvent;
 
   // WiFi config parametersd
   final _ssidController = TextEditingController(text: 'LAVUI_4G');
@@ -46,11 +49,14 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     super.initState();
     // Listen to WiFi registration events immediately
     _setupWifiRegistrationListener();
+    // Listen to RF sign registration events
+    _setupRfSignRegistrationListener();
   }
 
   @override
   void dispose() {
     _streamSubscription?.cancel();
+    _rfSignStreamSubscription?.cancel();
     _ssidController.dispose();
     _passwordController.dispose();
     _hostController.dispose();
@@ -115,6 +121,48 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     );
 
     debugPrint('✓ WiFi registration listener active');
+  }
+
+  void _setupRfSignRegistrationListener() {
+    debugPrint('════════════════════════════════════════════════════════════');
+    debugPrint('📡 Setting up RF sign registration listener');
+    debugPrint('════════════════════════════════════════════════════════════');
+
+    _rfSignStreamSubscription = _plugin.regwithRfSignStream.listen(
+      (eventMap) {
+        if (!mounted) return;
+
+        final type = eventMap['type'] as String?;
+        debugPrint('📩 RF SIGN EVENT RECEIVED: $type');
+        debugPrint('   Event data: $eventMap');
+
+        if (type == 'rfSignRegistration') {
+          final operMode = (eventMap['operMode'] as num?)?.toInt() ?? 0;
+          final moduleMac = eventMap['moduleMac'] as String? ?? '';
+          final originalModuleMac = eventMap['originalModuleMac'] as String? ?? '';
+          final statusMessage = eventMap['statusMessage'] as String? ?? 'Unknown';
+
+          debugPrint('   📡 OperMode: 0x${operMode.toRadixString(16).padLeft(2, '0')} - $statusMessage');
+          debugPrint('   Module MAC: $moduleMac');
+          debugPrint('   Original Module MAC: $originalModuleMac');
+
+          setState(() {
+            _latestRfSignEvent = eventMap;
+            _rfSignEvents.insert(0, eventMap);
+
+            // Auto-stop loading when we reach a terminal state (0x05, 0x06, 0x07)
+            if (operMode == 0x05 || operMode == 0x06 || operMode == 0x07) {
+              _loading = false;
+            }
+          });
+        }
+      },
+      onError: (error) {
+        debugPrint('✗ RF sign registration stream error: $error');
+      },
+    );
+
+    debugPrint('✓ RF sign registration listener active');
   }
 
   Color _getStatusColor(WifiRegistrationEvent? event) {
@@ -217,6 +265,8 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
     setState(() {
       _events.clear();
       _latestEvent = null;
+      _rfSignEvents.clear();
+      _latestRfSignEvent = null;
     });
   }
 
@@ -365,6 +415,52 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
               ),
 
               const SizedBox(height: 16),
+
+              // RF Sign Events Section (for debugging/testing)
+              if (_rfSignEvents.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: Colors.blue.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.settings_input_antenna, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'RF Sign Events (${_rfSignEvents.length})',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_latestRfSignEvent != null) ...[
+                            const Divider(),
+                            Text(
+                              'Latest: ${_latestRfSignEvent!['statusMessage']}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              'OperMode: 0x${(_latestRfSignEvent!['operMode'] as num).toInt().toRadixString(16).padLeft(2, '0')}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                            Text(
+                              'Module MAC: ${_latestRfSignEvent!['moduleMac']}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 8),
 
               // Status History
               Expanded(

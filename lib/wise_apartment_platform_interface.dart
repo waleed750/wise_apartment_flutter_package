@@ -131,6 +131,10 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Events contain status codes and module/lock MAC addresses.
   Stream<Map<String, dynamic>> get wifiRegistrationStream;
 
+  /// Stream that emits RF sign registration results from the device.
+  /// Events contain operation mode, module MAC, and original module MAC.
+  Stream<Map<String, dynamic>> get regwithRfSignStream;
+
   Future<bool> syncLockTime(Map<String, dynamic> auth);
 
   /// Start the native getSysParam stream. Emits events on `getSysParamStream`.

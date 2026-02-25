@@ -85,6 +85,27 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
     return _wifiRegistrationStream!;
   }
 
+  Stream<Map<String, dynamic>>? _regwithRfSignStream;
+
+  @override
+  Stream<Map<String, dynamic>> get regwithRfSignStream {
+    _regwithRfSignStream ??= eventChannel.receiveBroadcastStream().map((
+      event,
+    ) {
+      if (event is Map) {
+        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
+        final String? type = m['type'] is String ? m['type'] as String : null;
+        if (type == 'rfSignRegistration') {
+          return m;
+        }
+        // ignore other event types
+        return <String, dynamic>{'type': 'unknown', 'data': event};
+      }
+      return <String, dynamic>{'type': 'unknown', 'data': event};
+    });
+    return _regwithRfSignStream!;
+  }
+
   Stream<Map<String, dynamic>>? _addLockKeyStream;
 
   @override

@@ -203,8 +203,8 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     NSLog(@"[WiseApartmentPlugin] RF Module MAC: %@", rfModuleMac);
     NSLog(@"[WiseApartmentPlugin] Lock MAC: %@", lockMac);
     
-    // Emit event to Flutter via EventChannel
-    NSDictionary *event = @{
+    // Emit WiFi registration event to Flutter via EventChannel
+    NSDictionary *wifiEvent = @{
         @"type": @"wifiRegistration",
         @"status": @(wifiStatus),
         @"moduleMac": rfModuleMac,
@@ -212,8 +212,23 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
         @"statusMessage": statusMessage
     };
     
-    [self.eventEmitter emitEvent:event];
+    [self.eventEmitter emitEvent:wifiEvent];
     NSLog(@"[WiseApartmentPlugin] WiFi registration event emitted to Flutter");
+    
+    // Also emit RF sign registration event with appropriate field mapping
+    // iOS uses the same notification for both WiFi and RF sign registration
+    NSString *originalRfModuleMac = param.originalRfModuleMac ?: @"";
+    
+    NSDictionary *rfSignEvent = @{
+        @"type": @"rfSignRegistration",
+        @"operMode": @(wifiStatus),
+        @"moduleMac": rfModuleMac,
+        @"originalModuleMac": originalRfModuleMac,
+        @"statusMessage": statusMessage
+    };
+    
+    [self.eventEmitter emitEvent:rfSignEvent];
+    NSLog(@"[WiseApartmentPlugin] RF sign registration event emitted to Flutter");
 }
 
 #pragma mark - FlutterStreamHandler (EventChannel)

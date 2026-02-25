@@ -134,6 +134,54 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
             });
           }
           
+          // Register RF sign registration callback to emit events to Flutter
+          if (bleClient instanceof MyBleClient) {
+            ((MyBleClient) bleClient).setRfSignRegistrationCallback(new MyBleClient.RfSignRegistrationCallback() {
+              @Override
+              public void onRfSignRegistrationEvent(final int operMode, final String moduleMac, final String originalModuleMac) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                  @Override
+                  public void run() {
+                    if (eventSink != null) {
+                      Map<String, Object> event = new java.util.HashMap<>();
+                      event.put("type", "rfSignRegistration");
+                      event.put("operMode", operMode);
+                      event.put("moduleMac", moduleMac != null ? moduleMac : "");
+                      event.put("originalModuleMac", originalModuleMac != null ? originalModuleMac : "");
+                      
+                      // Add status message for convenience
+                      String statusMessage;
+                      switch (operMode) {
+                        case 0x02:
+                          statusMessage = "NB-IoT (WIFI module) network distribution binding in progress";
+                          break;
+                        case 0x04:
+                          statusMessage = "WiFi module successfully connected to router";
+                          break;
+                        case 0x05:
+                          statusMessage = "WiFi module successfully connected to cloud (network configuration successful)";
+                          break;
+                        case 0x06:
+                          statusMessage = "Incorrect password";
+                          break;
+                        case 0x07:
+                          statusMessage = "WIFI pairing timeout";
+                          break;
+                        default:
+                          statusMessage = "Unknown operation mode: 0x" + Integer.toHexString(operMode);
+                          break;
+                      }
+                      event.put("statusMessage", statusMessage);
+                      
+                      Log.d(TAG, "Emitting rfSignRegistration event: " + statusMessage);
+                      eventSink.success(event);
+                    }
+                  }
+                });
+              }
+            });
+          }
+          
           bleClient.setLinkCallBack(new LinkCallBack() {
             @Override
             public void onDeviceConnected(@NonNull BluetoothDevice device) {
@@ -491,7 +539,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
       case "addFingerprintKeyStream":
         if (lockManager != null) {
           if (eventSink != null) {
-            lockManager.addFingerprintKeyStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.AddLockKeyStreamCallback() {
+            lockManager.addLockKeyStream((Map<String, Object>) call.arguments, new com.example.wise_apartment.utils.BleLockManager.AddLockKeyStreamCallback() {
               @Override
               public void onChunk(final Map<String, Object> chunkEvent) {
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
