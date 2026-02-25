@@ -89,9 +89,7 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Stream<Map<String, dynamic>> get regwithRfSignStream {
-    _regwithRfSignStream ??= eventChannel.receiveBroadcastStream().map((
-      event,
-    ) {
+    _regwithRfSignStream ??= eventChannel.receiveBroadcastStream().map((event) {
       if (event is Map) {
         final Map<String, dynamic> m = Map<String, dynamic>.from(event);
         final String? type = m['type'] is String ? m['type'] as String : null;

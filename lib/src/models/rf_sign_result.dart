@@ -4,7 +4,7 @@
 /// Events are emitted through [WiseApartment.regwithRfSignStream].
 class RfSignResult {
   /// Operation mode / status code from the device
-  /// 
+  ///
   /// Status codes:
   /// - 0x02: NB-IoT (WIFI module) is in the process of network distribution binding operation
   /// - 0x04: WiFi module is successfully connected to the router (may not return)
@@ -71,8 +71,7 @@ class RfSignResult {
   bool get isTerminal => isSuccess || isError;
 
   /// Returns the operation mode as a hex string (e.g., "0x05")
-  String get operModeHex =>
-      '0x${operMode.toRadixString(16).padLeft(2, '0')}';
+  String get operModeHex => '0x${operMode.toRadixString(16).padLeft(2, '0')}';
 
   /// Returns a friendly name for the operation mode
   String get operModeName {

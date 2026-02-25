@@ -139,10 +139,14 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
         if (type == 'rfSignRegistration') {
           final operMode = (eventMap['operMode'] as num?)?.toInt() ?? 0;
           final moduleMac = eventMap['moduleMac'] as String? ?? '';
-          final originalModuleMac = eventMap['originalModuleMac'] as String? ?? '';
-          final statusMessage = eventMap['statusMessage'] as String? ?? 'Unknown';
+          final originalModuleMac =
+              eventMap['originalModuleMac'] as String? ?? '';
+          final statusMessage =
+              eventMap['statusMessage'] as String? ?? 'Unknown';
 
-          debugPrint('   📡 OperMode: 0x${operMode.toRadixString(16).padLeft(2, '0')} - $statusMessage');
+          debugPrint(
+            '   📡 OperMode: 0x${operMode.toRadixString(16).padLeft(2, '0')} - $statusMessage',
+          );
           debugPrint('   Module MAC: $moduleMac');
           debugPrint('   Original Module MAC: $originalModuleMac');
 
@@ -429,13 +433,15 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.settings_input_antenna, size: 20),
+                              const Icon(
+                                Icons.settings_input_antenna,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'RF Sign Events (${_rfSignEvents.length})',
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -447,11 +453,17 @@ class _WifiRegistrationScreenState extends State<WifiRegistrationScreen> {
                             ),
                             Text(
                               'OperMode: 0x${(_latestRfSignEvent!['operMode'] as num).toInt().toRadixString(16).padLeft(2, '0')}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
                             ),
                             Text(
                               'Module MAC: ${_latestRfSignEvent!['moduleMac']}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ],
