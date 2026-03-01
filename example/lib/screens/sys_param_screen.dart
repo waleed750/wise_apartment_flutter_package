@@ -136,8 +136,9 @@ class _SysParamScreenState extends State<SysParamScreen> {
   Widget build(BuildContext context) {
     final prettyBody = _response == null
         ? 'No data'
-        : const JsonEncoder.withIndent('  ')
-            .convert(_body.isEmpty ? _response : _body);
+        : const JsonEncoder.withIndent(
+            '  ',
+          ).convert(_body.isEmpty ? _response : _body);
 
     return Scaffold(
       appBar: AppBar(
@@ -150,7 +151,9 @@ class _SysParamScreenState extends State<SysParamScreen> {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               ),
             )
           else
@@ -174,8 +177,7 @@ class _SysParamScreenState extends State<SysParamScreen> {
               color: _setSuccess == true
                   ? Colors.green.shade100
                   : Colors.red.shade100,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               width: double.infinity,
               child: Row(
                 children: [
@@ -215,52 +217,57 @@ class _SysParamScreenState extends State<SysParamScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.red, size: 40),
-                              const SizedBox(height: 8),
-                              Text('Failed to load: $_error',
-                                  textAlign: TextAlign.center),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: _load,
-                                child: const Text('Retry'),
-                              ),
-                            ],
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 40,
                           ),
-                        ),
-                      )
-                    : Scrollbar(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _SysParamCard(body: _body),
-                              if (_body.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                Text('Raw response',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium),
-                                const SizedBox(height: 4),
-                              ],
-                              SelectableText(
-                                prettyBody,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11.5,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Failed to load: $_error',
+                            textAlign: TextAlign.center,
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _load,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
+                    ),
+                  )
+                : Scrollbar(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SysParamCard(body: _body),
+                          if (_body.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              'Raw response',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          SelectableText(
+                            prettyBody,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -279,22 +286,25 @@ class _SysParamCard extends StatelessWidget {
     if (body.isEmpty) return const SizedBox.shrink();
 
     Widget row(String label, dynamic value) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 170,
-                child: Text(label,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 13)),
-              ),
-              Expanded(
-                child:
-                    Text(value?.toString() ?? '—', style: const TextStyle(fontSize: 13)),
-              ),
-            ],
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
           ),
-        );
+          Expanded(
+            child: Text(
+              value?.toString() ?? '—',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
 
     String modeLabel(dynamic raw, Map<int, String> labels) {
       if (raw == null) return '—';
@@ -310,29 +320,50 @@ class _SysParamCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Current Status',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Current Status',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const Divider(),
             row('Battery', '${b['electricNum'] ?? '—'}%'),
-            row('Unlock mode',
-                modeLabel(b['lockOpen'], {1: '1 – Single', 2: '2 – Combination'})),
-            row('Normally open',
-                modeLabel(b['normallyOpen'], {1: '1 – Enabled', 2: '2 – Disabled'})),
-            row('Voice',
-                modeLabel(b['isSound'], {1: '1 – On', 2: '2 – Off'})),
-            row('Tamper alarm',
-                modeLabel(b['isTamperWarn'], {1: '1 – Enabled', 2: '2 – Disabled'})),
-            row('Lock-core alarm',
-                modeLabel(b['isLockCoreWarn'],
-                    {0: '0 – N/A', 1: '1 – Enabled', 2: '2 – Disabled'})),
-            row('Anti-lock (deadbolt)',
-                modeLabel(b['isLock'], {1: '1 – Enabled', 2: '2 – Disabled'})),
-            row('Lock-cap alarm',
-                modeLabel(b['isLockCap'], {1: '1 – Enabled', 2: '2 – Disabled'})),
+            row(
+              'Unlock mode',
+              modeLabel(b['lockOpen'], {1: '1 – Single', 2: '2 – Combination'}),
+            ),
+            row(
+              'Normally open',
+              modeLabel(b['normallyOpen'], {
+                1: '1 – Enabled',
+                2: '2 – Disabled',
+              }),
+            ),
+            row('Voice', modeLabel(b['isSound'], {1: '1 – On', 2: '2 – Off'})),
+            row(
+              'Tamper alarm',
+              modeLabel(b['isTamperWarn'], {
+                1: '1 – Enabled',
+                2: '2 – Disabled',
+              }),
+            ),
+            row(
+              'Lock-core alarm',
+              modeLabel(b['isLockCoreWarn'], {
+                0: '0 – N/A',
+                1: '1 – Enabled',
+                2: '2 – Disabled',
+              }),
+            ),
+            row(
+              'Anti-lock (deadbolt)',
+              modeLabel(b['isLock'], {1: '1 – Enabled', 2: '2 – Disabled'}),
+            ),
+            row(
+              'Lock-cap alarm',
+              modeLabel(b['isLockCap'], {1: '1 – Enabled', 2: '2 – Disabled'}),
+            ),
             row('System language', b['systemLanguage']),
             row('System time', b['sysTime']),
-            row('Timezone offset',
-                b['timezoneOffset'] ?? b['TimezoneOffset']),
+            row('Timezone offset', b['timezoneOffset'] ?? b['TimezoneOffset']),
           ],
         ),
       ),
@@ -366,15 +397,15 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
   void initState() {
     super.initState();
     final m = widget.initial;
-    _lockOpen       = m.lockOpen;
-    _normallyOpen   = m.normallyOpen;
-    _isSound        = m.isSound;
-    _isTamperWarn   = m.isTamperWarn;
+    _lockOpen = m.lockOpen;
+    _normallyOpen = m.normallyOpen;
+    _isSound = m.isSound;
+    _isTamperWarn = m.isTamperWarn;
     _isLockCoreWarn = m.isLockCoreWarn;
-    _isLock         = m.isLock;
-    _isLockCap      = m.isLockCap;
+    _isLock = m.isLock;
+    _isLockCap = m.isLockCap;
     _systemLanguage = m.systemLanguage;
-    _sysVolume      = m.sysVolume;
+    _sysVolume = m.sysVolume;
   }
 
   Widget _dropdown<T>({
@@ -388,16 +419,19 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
       child: Row(
         children: [
           SizedBox(
-              width: 148,
-              child: Text(label, style: const TextStyle(fontSize: 13.5))),
+            width: 148,
+            child: Text(label, style: const TextStyle(fontSize: 13.5)),
+          ),
           Expanded(
             child: DropdownButtonFormField<T>(
               initialValue: value,
               isExpanded: true,
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 border: OutlineInputBorder(),
               ),
               items: items,
@@ -410,10 +444,10 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
   }
 
   List<DropdownMenuItem<int>> _opts12(String l1, String l2) => [
-        const DropdownMenuItem<int>(value: null, child: Text('— no change —')),
-        DropdownMenuItem<int>(value: 1, child: Text('1 – $l1')),
-        DropdownMenuItem<int>(value: 2, child: Text('2 – $l2')),
-      ];
+    const DropdownMenuItem<int>(value: null, child: Text('— no change —')),
+    DropdownMenuItem<int>(value: 1, child: Text('1 – $l1')),
+    DropdownMenuItem<int>(value: 2, child: Text('2 – $l2')),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -433,8 +467,10 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Set System Parameters',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    'Set System Parameters',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
@@ -448,10 +484,9 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
             Text(
               'Only the changed fields will be sent. '
               '"— no change —" leaves the current lock value unchanged.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: Colors.grey.shade600),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
             ),
             const Divider(height: 20),
 
@@ -484,7 +519,10 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
               label: 'Lock-core alarm',
               value: _isLockCoreWarn,
               items: const [
-                DropdownMenuItem<int>(value: null, child: Text('— no change —')),
+                DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('— no change —'),
+                ),
                 DropdownMenuItem<int>(value: 0, child: Text('0 – No change')),
                 DropdownMenuItem<int>(value: 1, child: Text('1 – Enable')),
                 DropdownMenuItem<int>(value: 2, child: Text('2 – Disable')),
@@ -507,9 +545,18 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
               label: 'System language',
               value: _systemLanguage,
               items: const [
-                DropdownMenuItem<int>(value: null, child: Text('— no change —')),
-                DropdownMenuItem<int>(value: 1, child: Text('1 – Simplified Chinese')),
-                DropdownMenuItem<int>(value: 2, child: Text('2 – Traditional Chinese')),
+                DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('— no change —'),
+                ),
+                DropdownMenuItem<int>(
+                  value: 1,
+                  child: Text('1 – Simplified Chinese'),
+                ),
+                DropdownMenuItem<int>(
+                  value: 2,
+                  child: Text('2 – Traditional Chinese'),
+                ),
                 DropdownMenuItem<int>(value: 3, child: Text('3 – English')),
                 DropdownMenuItem<int>(value: 4, child: Text('4 – Vietnamese')),
                 DropdownMenuItem<int>(value: 5, child: Text('5 – Thai')),
@@ -520,8 +567,14 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
               label: 'System volume',
               value: _sysVolume,
               items: const [
-                DropdownMenuItem<int>(value: null, child: Text('— no change —')),
-                DropdownMenuItem<int>(value: 0, child: Text('0 – Do not change')),
+                DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('— no change —'),
+                ),
+                DropdownMenuItem<int>(
+                  value: 0,
+                  child: Text('0 – Do not change'),
+                ),
                 DropdownMenuItem<int>(value: 1, child: Text('1')),
                 DropdownMenuItem<int>(value: 2, child: Text('2')),
                 DropdownMenuItem<int>(value: 3, child: Text('3')),

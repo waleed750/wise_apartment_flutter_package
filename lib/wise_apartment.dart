@@ -365,8 +365,10 @@ class WiseApartment {
     SetSysParamModel? model,
     Map<String, dynamic>? params,
   }) {
-    assert(model != null || params != null,
-        'Provide either model or params to setSysParam');
+    assert(
+      model != null || params != null,
+      'Provide either model or params to setSysParam',
+    );
     final Map<String, dynamic> p =
         model?.toMap() ?? Map<String, dynamic>.from(params!);
     return WiseApartmentPlatform.instance.setSysParam(auth, p);

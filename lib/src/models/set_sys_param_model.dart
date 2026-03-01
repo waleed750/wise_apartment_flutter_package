@@ -153,19 +153,21 @@ class SetSysParamModel {
   /// Only non-null fields are included so the native side can skip them.
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{};
-    if (lockOpen != null)            map['lockOpen']            = lockOpen;
-    if (normallyOpen != null)        map['normallyOpen']        = normallyOpen;
-    if (isSound != null)             map['isSound']             = isSound;
-    if (sysVolume != null)           map['sysVolume']           = sysVolume;
-    if (isTamperWarn != null)        map['isTamperWarn']        = isTamperWarn;
-    if (isLockCoreWarn != null)      map['isLockCoreWarn']      = isLockCoreWarn;
-    if (isLock != null)              map['isLock']              = isLock;
-    if (isLockCap != null)           map['isLockCap']           = isLockCap;
-    if (systemLanguage != null)      map['systemLanguage']      = systemLanguage;
-    if (replaceSet != null)          map['replaceSet']          = replaceSet;
-    if (antiCopyFunction != null)    map['antiCopyFunction']    = antiCopyFunction;
-    if (keyTrialErrorAlarmEn != null)  map['keyTrialErrorAlarmEn']  = keyTrialErrorAlarmEn;
-    if (noneCloseVoiceAlarmEn != null) map['noneCloseVoiceAlarmEn'] = noneCloseVoiceAlarmEn;
+    if (lockOpen != null) map['lockOpen'] = lockOpen;
+    if (normallyOpen != null) map['normallyOpen'] = normallyOpen;
+    if (isSound != null) map['isSound'] = isSound;
+    if (sysVolume != null) map['sysVolume'] = sysVolume;
+    if (isTamperWarn != null) map['isTamperWarn'] = isTamperWarn;
+    if (isLockCoreWarn != null) map['isLockCoreWarn'] = isLockCoreWarn;
+    if (isLock != null) map['isLock'] = isLock;
+    if (isLockCap != null) map['isLockCap'] = isLockCap;
+    if (systemLanguage != null) map['systemLanguage'] = systemLanguage;
+    if (replaceSet != null) map['replaceSet'] = replaceSet;
+    if (antiCopyFunction != null) map['antiCopyFunction'] = antiCopyFunction;
+    if (keyTrialErrorAlarmEn != null)
+      map['keyTrialErrorAlarmEn'] = keyTrialErrorAlarmEn;
+    if (noneCloseVoiceAlarmEn != null)
+      map['noneCloseVoiceAlarmEn'] = noneCloseVoiceAlarmEn;
     return map;
   }
 
@@ -198,7 +200,8 @@ class SetSysParamModel {
       replaceSet: replaceSet ?? this.replaceSet,
       antiCopyFunction: antiCopyFunction ?? this.antiCopyFunction,
       keyTrialErrorAlarmEn: keyTrialErrorAlarmEn ?? this.keyTrialErrorAlarmEn,
-      noneCloseVoiceAlarmEn: noneCloseVoiceAlarmEn ?? this.noneCloseVoiceAlarmEn,
+      noneCloseVoiceAlarmEn:
+          noneCloseVoiceAlarmEn ?? this.noneCloseVoiceAlarmEn,
     );
   }
 

@@ -642,12 +642,16 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
 
   @override
   Future<Map<String, dynamic>> setSysParam(
-      Map<String, dynamic> auth, Map<String, dynamic> params) async {
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  ) async {
     try {
       // Merge auth fields with param fields; auth fields take priority.
       final args = <String, dynamic>{};
       args.addAll(params);
-      args.addAll(auth); // auth keys (mac, aesKey, etc.) must not be overwritten
+      args.addAll(
+        auth,
+      ); // auth keys (mac, aesKey, etc.) must not be overwritten
       final Map<String, dynamic>? result = await methodChannel
           .invokeMapMethod<String, dynamic>('setSysParam', args);
       return result ?? <String, dynamic>{};
