@@ -672,7 +672,8 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                               ? password
                               : null;
                           _actionModel.addedKeyType = chosenKeyType;
-                          _actionModel.addedKeyID = 0;
+                          _actionModel.addedKeyID = parseI(_keyIdController.text) ??
+                              0;
                           _actionModel.addedKeyGroupId =
                               parseI(_addedKeyGroupIdController.text) ??
                               _actionModel.addedKeyGroupId;
@@ -790,6 +791,7 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
                           try {
                             actionModel.validateOrThrow(
                               authMode: actionModel.authorMode,
+                              userType: _currentUserType,
                             );
                           } catch (e) {
                             if (mounted) {
@@ -851,6 +853,10 @@ class _AddLockKeyScreenState extends State<AddLockKeyScreen> {
   }
 
   String? validateUserID(int value) {
+    //Super admin is enabled
+    if (value == 900 && _currentUserType == 1) {
+      return null;
+    }
     if (_currentUserType == 0) {
       //user 2001~4095 Regular User
       if (value < 2001 || value > 4095) {

@@ -65,8 +65,8 @@ class _SysParamScreenState extends State<SysParamScreen> {
     });
     try {
       final res = await _plugin.setSysParam(widget.auth, model: model);
-      if (!mounted) return;
-      final ok = res['isSuccessful'] == true;
+    
+      final ok = res['isSuccessful'] == true || res['code'] == 0;
       setState(() {
         _setSuccess = ok;
         _setMessage = ok
@@ -392,6 +392,15 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
   late int? _isLockCap;
   late int? _systemLanguage;
   late int? _sysVolume;
+  late String? _adminPassword;
+  late int? _cmdType;
+  late int? _setKeyTriggerTime;
+  late int? _squareTongueBlockingCurrentLevel;
+  late int? _squareTongueExcerciseTime;
+  late int? _squareTongueHold;
+  late int? _tongueLockTime;
+  late int? _tongueUlockTime;
+  late int? _unLockDirection;
 
   @override
   void initState() {
@@ -406,6 +415,15 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
     _isLockCap = m.isLockCap;
     _systemLanguage = m.systemLanguage;
     _sysVolume = m.sysVolume;
+    _adminPassword = m.adminPassword;
+    _cmdType = m.cmdType;
+    _setKeyTriggerTime = m.setKeyTriggerTime;
+    _squareTongueBlockingCurrentLevel = m.squareTongueBlockingCurrentLevel;
+    _squareTongueExcerciseTime = m.squareTongueExcerciseTime;
+    _squareTongueHold = m.squareTongueHold;
+    _tongueLockTime = m.tongueLockTime;
+    _tongueUlockTime = m.tongueUlockTime;
+    _unLockDirection = m.unLockDirection;
   }
 
   Widget _dropdown<T>({
@@ -443,24 +461,26 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
     );
   }
 
-  List<DropdownMenuItem<int>> _opts12(String l1, String l2) => [
-    const DropdownMenuItem<int>(value: null, child: Text('— no change —')),
-    DropdownMenuItem<int>(value: 1, child: Text('1 – $l1')),
-    DropdownMenuItem<int>(value: 2, child: Text('2 – $l2')),
-  ];
+  List<DropdownMenuItem<int>> _itemsFromIntList(List<int> opts, {Map<int, String>? labels}) {
+    final List<DropdownMenuItem<int>> items = [
+      const DropdownMenuItem<int>(value: null, child: Text('— no change —')),
+    ];
+    for (final v in opts) {
+      final label = labels != null ? (labels[v] ?? v.toString()) : v.toString();
+      items.add(DropdownMenuItem<int>(value: v, child: Text(label)));
+    }
+    return items;
+  }
+
+  
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24),
       child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
@@ -480,110 +500,150 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Only the changed fields will be sent. '
-              '"— no change —" leaves the current lock value unchanged.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
-            ),
             const Divider(height: 20),
 
             // ── Fields ──────────────────────────────────────────────────────
             _dropdown<int>(
               label: 'Unlock mode',
               value: _lockOpen,
-              items: _opts12('Single', 'Combination'),
+              items: _itemsFromIntList(SetSysParamModel.lockOpenOptions, labels: SetSysParamModel.lockOpenLabels),
               onChanged: (v) => setState(() => _lockOpen = v),
             ),
-            _dropdown<int>(
-              label: 'Normally open',
-              value: _normallyOpen,
-              items: _opts12('Enable', 'Disable'),
-              onChanged: (v) => setState(() => _normallyOpen = v),
+            // Admin password (string)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(width: 148, child: Text('Admin password', style: const TextStyle(fontSize: 13.5))),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: _adminPassword,
+                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8), border: OutlineInputBorder()),
+                      onChanged: (v) => setState(() => _adminPassword = v.isEmpty ? null : v),
+                    ),
+                  ),
+                ],
+              ),
             ),
             _dropdown<int>(
-              label: 'Door-open voice',
-              value: _isSound,
-              items: _opts12('On', 'Off'),
-              onChanged: (v) => setState(() => _isSound = v),
+              label: 'Command type',
+              value: _cmdType,
+              items: _itemsFromIntList(SetSysParamModel.cmdTypeOptions, labels: {1: '1 – Normal lock', 2: '2 – Automatic lock'}),
+              onChanged: (v) => setState(() => _cmdType = v),
+            ),
+           
+            // Numeric simple inputs
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(width: 148, child: Text('Long-press time', style: const TextStyle(fontSize: 13.5))),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: _setKeyTriggerTime?.toString(),
+                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8), border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) => setState(() => _setKeyTriggerTime = int.tryParse(v)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(width: 148, child: Text('Square tongue current', style: const TextStyle(fontSize: 13.5))),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: _squareTongueBlockingCurrentLevel?.toString(),
+                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8), border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) => setState(() => _squareTongueBlockingCurrentLevel = int.tryParse(v)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(width: 148, child: Text('Square tongue exercise', style: const TextStyle(fontSize: 13.5))),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: _squareTongueExcerciseTime?.toString(),
+                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8), border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) => setState(() => _squareTongueExcerciseTime = int.tryParse(v)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(width: 148, child: Text('Square tongue hold', style: const TextStyle(fontSize: 13.5))),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: _squareTongueHold?.toString(),
+                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8), border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onChanged: (v) => setState(() => _squareTongueHold = int.tryParse(v)),
+                    ),
+                  ),
+                ],
+              ),
             ),
             _dropdown<int>(
-              label: 'Tamper alarm',
-              value: _isTamperWarn,
-              items: _opts12('Enable', 'Disable'),
-              onChanged: (v) => setState(() => _isTamperWarn = v),
+              label: 'Slant tongue level',
+              value: _tongueLockTime,
+              items: _itemsFromIntList(SetSysParamModel.tongueLockTimeOptions, labels: {for (var i in SetSysParamModel.tongueLockTimeOptions) i: i.toString()}),
+              onChanged: (v) => setState(() => _tongueLockTime = v),
             ),
             _dropdown<int>(
-              label: 'Lock-core alarm',
-              value: _isLockCoreWarn,
-              items: const [
-                DropdownMenuItem<int>(
-                  value: null,
-                  child: Text('— no change —'),
+              label: 'Tongue retract pause',
+              value: _tongueUlockTime,
+              items: _itemsFromIntList(SetSysParamModel.tongueUlockTimeOptions, labels: {30: '30 – Slow', 40: '40 – Medium', 50: '50 – Fast'}),
+              onChanged: (v) => setState(() => _tongueUlockTime = v),
+            ),
+            _dropdown<int>(
+              label: 'Unlock direction',
+              value: _unLockDirection,
+              items: _itemsFromIntList(SetSysParamModel.unLockDirectionOptions, labels: {0: '0 – Forward', 1: '1 – Reverse'}),
+              onChanged: (v) => setState(() => _unLockDirection = v),
+            ),
+            Row(
+              children: [
+                SizedBox(width: 148, child: Text('Sound', style: const TextStyle(fontSize: 13.5))),
+                Expanded(
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enable sound'),
+                    value: _isSound == 1,
+                    onChanged: (v) => setState(() => _isSound = v ? 1 : 2),
+                  ),
                 ),
-                DropdownMenuItem<int>(value: 0, child: Text('0 – No change')),
-                DropdownMenuItem<int>(value: 1, child: Text('1 – Enable')),
-                DropdownMenuItem<int>(value: 2, child: Text('2 – Disable')),
               ],
-              onChanged: (v) => setState(() => _isLockCoreWarn = v),
-            ),
-            _dropdown<int>(
-              label: 'Anti-lock',
-              value: _isLock,
-              items: _opts12('Enable', 'Disable'),
-              onChanged: (v) => setState(() => _isLock = v),
-            ),
-            _dropdown<int>(
-              label: 'Lock-cap alarm',
-              value: _isLockCap,
-              items: _opts12('Enable', 'Disable'),
-              onChanged: (v) => setState(() => _isLockCap = v),
             ),
             _dropdown<int>(
               label: 'System language',
               value: _systemLanguage,
-              items: const [
-                DropdownMenuItem<int>(
-                  value: null,
-                  child: Text('— no change —'),
-                ),
-                DropdownMenuItem<int>(
-                  value: 1,
-                  child: Text('1 – Simplified Chinese'),
-                ),
-                DropdownMenuItem<int>(
-                  value: 2,
-                  child: Text('2 – Traditional Chinese'),
-                ),
-                DropdownMenuItem<int>(value: 3, child: Text('3 – English')),
-                DropdownMenuItem<int>(value: 4, child: Text('4 – Vietnamese')),
-                DropdownMenuItem<int>(value: 5, child: Text('5 – Thai')),
-              ],
+                items: _itemsFromIntList(SetSysParamModel.systemLanguageOptions, labels: SetSysParamModel.systemLanguageLabels),
               onChanged: (v) => setState(() => _systemLanguage = v),
             ),
-            _dropdown<int>(
-              label: 'System volume',
-              value: _sysVolume,
-              items: const [
-                DropdownMenuItem<int>(
-                  value: null,
-                  child: Text('— no change —'),
-                ),
-                DropdownMenuItem<int>(
-                  value: 0,
-                  child: Text('0 – Do not change'),
-                ),
-                DropdownMenuItem<int>(value: 1, child: Text('1')),
-                DropdownMenuItem<int>(value: 2, child: Text('2')),
-                DropdownMenuItem<int>(value: 3, child: Text('3')),
-                DropdownMenuItem<int>(value: 4, child: Text('4')),
-                DropdownMenuItem<int>(value: 5, child: Text('5 – Max')),
-              ],
-              onChanged: (v) => setState(() => _sysVolume = v),
+            Text("System volume (0-5)", style: const TextStyle(fontSize: 13.5)),
+            Slider(
+              value: _sysVolume?.toDouble() ?? 0,
+              min: 0,
+              max: SetSysParamModel.sysVolumeOptions.last.toDouble(),
+              divisions: SetSysParamModel.sysVolumeOptions.length - 1,
+              
+              label: _sysVolume?.toString(),
+              onChanged: (v) => setState(() => _sysVolume = v.toInt()),
             ),
-
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -610,6 +670,15 @@ class _SetParamsSheetState extends State<_SetParamsSheet> {
       isLockCap: _isLockCap,
       systemLanguage: _systemLanguage,
       sysVolume: _sysVolume,
+      adminPassword: _adminPassword,
+      cmdType: _cmdType,
+      setKeyTriggerTime: _setKeyTriggerTime,
+      squareTongueBlockingCurrentLevel: _squareTongueBlockingCurrentLevel,
+      squareTongueExcerciseTime: _squareTongueExcerciseTime,
+      squareTongueHold: _squareTongueHold,
+      tongueLockTime: _tongueLockTime,
+      tongueUlockTime: _tongueUlockTime,
+      unLockDirection: _unLockDirection,
     );
     if (model.toMap().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

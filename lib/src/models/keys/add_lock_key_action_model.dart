@@ -1,4 +1,11 @@
 /// Model representing parameters for adding a lock key action.
+///
+/// Note: When the lock's "combination" unlock mode is enabled, the device
+/// requires two distinct valid keys to open the lock for a normal user.
+/// Administrators are allowed to open with a single key even when combination
+/// mode is enabled. Model validation supports an optional `userType` flag
+/// (0=regular user, 1=admin) that enforces correct user-id ranges for
+/// `addedKeyGroupId`.
 class AddLockKeyActionModel {
   String? password;
   int status;
@@ -172,8 +179,29 @@ class AddLockKeyActionModel {
   }
 
   /// Validate and throw [ArgumentError] on first failure.
-  void validateOrThrow({int? authMode}) {
+  ///
+  /// `authMode` remains supported for backward compatibility. Pass `userType`
+  /// (0=regular, 1=admin) to apply user-id range checks for `addedKeyGroupId`.
+  void validateOrThrow({int? authMode, int? userType}) {
     final errs = validate(authMode: authMode);
+
+    if (userType != null) {
+      // Super admin shortcut: allow 900 when userType==1
+      if (addedKeyGroupId == 900 && userType == 1) {
+        // allowed
+      } else if (userType == 0) {
+        // Regular user: IDs 2001..4095
+        if (addedKeyGroupId < 2001 || addedKeyGroupId > 4095) {
+          errs.add('User ID for Regular User must be between 2001 and 4095');
+        }
+      } else {
+        // Admin: IDs 901..2000
+        if (addedKeyGroupId < 901 || addedKeyGroupId > 2000) {
+          errs.add('User ID for Regular Administrator must be between 901 and 2000');
+        }
+      }
+    }
+
     if (errs.isNotEmpty) throw ArgumentError(errs.join('; '));
   }
 

@@ -122,6 +122,21 @@ final res = await wiseApartment.addLockKey(authMap, {'action': action.toMap()});
 
 Add these notes to ensure callers construct and validate the model before invoking `addLockKey`.
 
+### Combination unlock & `addedKeyGroupId` ranges
+
+- Combination mode: when a lock is configured in "combination" unlock mode, a normal user must present two distinct valid keys to open the lock. Administrators are permitted to open the lock with a single key even when combination mode is enabled. Servers and client apps should account for this when assigning keys and displaying UI guidance.
+- Validation: the Dart model `AddLockKeyActionModel` now performs user-type-aware validation for `addedKeyGroupId`. Use `validateOrThrow(userType: ...)` (where `userType` is `0` for regular users and `1` for admins) to enforce correct ranges:
+  - Regular user IDs: `2001..4095`
+  - Admin user IDs: `901..2000`
+  - Super-admin shortcut: `900` is allowed when `userType == 1` (admin)
+- Example: before submitting from a UI, call:
+
+```dart
+action.validateOrThrow(authMode: action.authorMode, userType: _currentUserType);
+```
+
+This centralizes validation in the model and ensures the device receives values within the expected ranges.
+
 ### Native SDK parameter reference (Objective-C)
 
 The native HXJ SDK exposes a parameter object used for adding keys. For clarity, here is the Objective-C interface and notes (source comments):

@@ -100,6 +100,94 @@ class SetSysParamModel {
   ///
   /// Android: `setNoneCloseVoiceAlarmEn` · iOS: `noneCloseVoiceAlarmEn`
   final int? noneCloseVoiceAlarmEn;
+  // Additional fields from device docs
+  /// Admin password (string) used for privileged operations.
+  final String? adminPassword;
+
+  /// Command type: 1 = normal lock, 2 = automatic lock.
+  final int? cmdType;
+
+  /// Automatic lock wait time level: allowed values {0,10,15,20}.
+  final int? lockWaitTime;
+
+  /// Bitmask indicating which options to set.
+  final int? setFlag;
+
+  /// Button long-press trigger time (ms). Default 50.
+  final int? setKeyTriggerTime;
+
+  /// Square tongue blocking current level. Default 30.
+  final int? squareTongueBlockingCurrentLevel;
+
+  /// Allowed time for square tongue movement. Default 50.
+  final int? squareTongueExcerciseTime;
+
+  /// Hold reversal time after square tongue sticks out. Default 3.
+  final int? squareTongueHold;
+
+  /// Slant tongue out time level (3..10).
+  final int? tongueLockTime;
+
+  /// Pause time after tongue is retracted: 30,40,50.
+  final int? tongueUlockTime;
+
+  /// Unlock direction: 0 = forward, 1 = reverse.
+  final int? unLockDirection;
+
+  // --- Allowed values / enums (lists and label maps) ----------------------
+  // These constants enumerate the valid values for fields that accept a
+  // constrained set of integers. Use them in UI dropdowns or validation.
+
+  /// `lockOpen` options: 1 = single unlock, 2 = combination unlock.
+  static const List<int> lockOpenOptions = [1, 2];
+  static const Map<int, String> lockOpenLabels = {
+    1: '1 – Single unlock',
+    2: '2 – Combination unlock',
+  };
+
+  /// `normallyOpen` options: 1 = enable, 2 = disable.
+  static const List<int> normallyOpenOptions = [1, 2];
+  static const Map<int, String> normallyOpenLabels = {
+    1: '1 – Enabled',
+    2: '2 – Disabled',
+  };
+
+  /// Simple toggle lists used by many fields (1 = enable, 2 = disable).
+  static const List<int> onOffOptions = [1, 2];
+
+  /// `isLockCoreWarn` values: 0 = do not change, 1 = enable, 2 = disable.
+  static const List<int> lockCoreWarnOptions = [0, 1, 2];
+
+  /// `systemLanguage` options (documented): 1..5.
+  static const List<int> systemLanguageOptions = [0, 1, 2,3,4];
+  static const Map<int, String> systemLanguageLabels = {
+    0: '0 – Simplified Chinese',
+    1: '1 – Traditional Chinese',
+    2: '2 – English',
+    3: '3 – Vietnamese',
+    4: '4 – Thai',
+  };
+
+  /// `sysVolume` values: 0 = do not change, 1..5 = volume levels.
+  static const List<int> sysVolumeOptions = [0, 1, 2, 3, 4, 5];
+
+  /// `cmdType` (command type) options: 1 = normal lock, 2 = automatic lock.
+  static const List<int> cmdTypeOptions = [1, 2];
+
+  /// `lockWaitTime` allowed values: 0 (no auto-lock), 10, 15, 20 seconds.
+  static const List<int> lockWaitTimeOptions = [0, 10, 15, 20];
+
+  /// `tongueLockTime` allowed integer levels: 3..10
+  static final List<int> tongueLockTimeOptions = [for (var i = 3; i <= 10; i++) i];
+
+  /// `tongueUlockTime` allowed pause times: 30, 40, 50
+  static const List<int> tongueUlockTimeOptions = [30, 40, 50];
+
+  /// `unLockDirection` options: 0 = forward, 1 = reverse
+  static const List<int> unLockDirectionOptions = [0, 1];
+
+  /// Generic triple-state fields that use 0/1/2 semantics (do not change/enable/disable)
+  static const List<int> triStateOptions = [0, 1, 2];
 
   const SetSysParamModel({
     this.lockOpen,
@@ -115,6 +203,17 @@ class SetSysParamModel {
     this.antiCopyFunction,
     this.keyTrialErrorAlarmEn,
     this.noneCloseVoiceAlarmEn,
+    this.adminPassword,
+    this.cmdType,
+    this.lockWaitTime,
+    this.setFlag,
+    this.setKeyTriggerTime,
+    this.squareTongueBlockingCurrentLevel,
+    this.squareTongueExcerciseTime,
+    this.squareTongueHold,
+    this.tongueLockTime,
+    this.tongueUlockTime,
+    this.unLockDirection,
   });
 
   /// Populate a [SetSysParamModel] from a plain [Map] (e.g. JSON decode).
@@ -141,6 +240,17 @@ class SetSysParamModel {
       antiCopyFunction: parseInt(map['antiCopyFunction']),
       keyTrialErrorAlarmEn: parseInt(map['keyTrialErrorAlarmEn']),
       noneCloseVoiceAlarmEn: parseInt(map['noneCloseVoiceAlarmEn']),
+      adminPassword: map['adminPassword'] is String ? map['adminPassword'] as String : null,
+      cmdType: parseInt(map['cmdType']),
+      lockWaitTime: parseInt(map['lockWaitTime']),
+      setFlag: parseInt(map['setFlag']),
+      setKeyTriggerTime: parseInt(map['setKeyTriggerTime']),
+      squareTongueBlockingCurrentLevel: parseInt(map['squareTongueBlockingCurrentLevel']),
+      squareTongueExcerciseTime: parseInt(map['squareTongueExcerciseTime']),
+      squareTongueHold: parseInt(map['squareTongueHold']),
+      tongueLockTime: parseInt(map['tongueLockTime']),
+      tongueUlockTime: parseInt(map['tongueUlockTime']),
+      unLockDirection: parseInt(map['unLockDirection']),
     );
   }
 
@@ -164,10 +274,27 @@ class SetSysParamModel {
     if (systemLanguage != null) map['systemLanguage'] = systemLanguage;
     if (replaceSet != null) map['replaceSet'] = replaceSet;
     if (antiCopyFunction != null) map['antiCopyFunction'] = antiCopyFunction;
-    if (keyTrialErrorAlarmEn != null)
+    if (keyTrialErrorAlarmEn != null) {
       map['keyTrialErrorAlarmEn'] = keyTrialErrorAlarmEn;
-    if (noneCloseVoiceAlarmEn != null)
+    }
+    if (noneCloseVoiceAlarmEn != null) {
       map['noneCloseVoiceAlarmEn'] = noneCloseVoiceAlarmEn;
+    }
+    if (adminPassword != null) map['adminPassword'] = adminPassword;
+    if (cmdType != null) map['cmdType'] = cmdType;
+    if (lockWaitTime != null) map['lockWaitTime'] = lockWaitTime;
+    if (setFlag != null) map['setFlag'] = setFlag;
+    if (setKeyTriggerTime != null) map['setKeyTriggerTime'] = setKeyTriggerTime;
+    if (squareTongueBlockingCurrentLevel != null) {
+      map['squareTongueBlockingCurrentLevel'] = squareTongueBlockingCurrentLevel;
+    }
+    if (squareTongueExcerciseTime != null) {
+      map['squareTongueExcerciseTime'] = squareTongueExcerciseTime;
+    }
+    if (squareTongueHold != null) map['squareTongueHold'] = squareTongueHold;
+    if (tongueLockTime != null) map['tongueLockTime'] = tongueLockTime;
+    if (tongueUlockTime != null) map['tongueUlockTime'] = tongueUlockTime;
+    if (unLockDirection != null) map['unLockDirection'] = unLockDirection;
     return map;
   }
 
@@ -186,6 +313,17 @@ class SetSysParamModel {
     int? antiCopyFunction,
     int? keyTrialErrorAlarmEn,
     int? noneCloseVoiceAlarmEn,
+    String? adminPassword,
+    int? cmdType,
+    int? lockWaitTime,
+    int? setFlag,
+    int? setKeyTriggerTime,
+    int? squareTongueBlockingCurrentLevel,
+    int? squareTongueExcerciseTime,
+    int? squareTongueHold,
+    int? tongueLockTime,
+    int? tongueUlockTime,
+    int? unLockDirection,
   }) {
     return SetSysParamModel(
       lockOpen: lockOpen ?? this.lockOpen,
@@ -202,6 +340,17 @@ class SetSysParamModel {
       keyTrialErrorAlarmEn: keyTrialErrorAlarmEn ?? this.keyTrialErrorAlarmEn,
       noneCloseVoiceAlarmEn:
           noneCloseVoiceAlarmEn ?? this.noneCloseVoiceAlarmEn,
+      adminPassword: adminPassword ?? this.adminPassword,
+      cmdType: cmdType ?? this.cmdType,
+      lockWaitTime: lockWaitTime ?? this.lockWaitTime,
+      setFlag: setFlag ?? this.setFlag,
+      setKeyTriggerTime: setKeyTriggerTime ?? this.setKeyTriggerTime,
+      squareTongueBlockingCurrentLevel: squareTongueBlockingCurrentLevel ?? this.squareTongueBlockingCurrentLevel,
+      squareTongueExcerciseTime: squareTongueExcerciseTime ?? this.squareTongueExcerciseTime,
+      squareTongueHold: squareTongueHold ?? this.squareTongueHold,
+      tongueLockTime: tongueLockTime ?? this.tongueLockTime,
+      tongueUlockTime: tongueUlockTime ?? this.tongueUlockTime,
+      unLockDirection: unLockDirection ?? this.unLockDirection,
     );
   }
 
