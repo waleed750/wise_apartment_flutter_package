@@ -140,6 +140,13 @@ abstract class WiseApartmentPlatform extends PlatformInterface {
   /// Returns a Map containing the response metadata and a `body` map of fields.
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth);
 
+  /// Write system parameters to the lock.
+  /// [auth] is the DNA/auth map. [params] contains only the fields to change.
+  /// Returns a base response map with `isSuccessful`, `code`, `ackMessage`.
+  /// After ~1 s the lock emits an updated SysParamResult via onEventReport.
+  Future<Map<String, dynamic>> setSysParam(
+      Map<String, dynamic> auth, Map<String, dynamic> params);
+
   /// Enable or disable an individual key by its key ID (Operation Mode 1).
   Future<Map<String, dynamic>> enableKeyById({
     required Map<String, dynamic> auth,

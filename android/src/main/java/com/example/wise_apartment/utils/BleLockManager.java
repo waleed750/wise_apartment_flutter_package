@@ -14,6 +14,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.SyncLockKeyActi
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ChangeKeyPwdAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.ModifyKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.EnableLockKeyAction;
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.SetSysParamAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEAddBigDataKeyAction;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BLEKeyValidTimeParam;
 import com.example.hxjblinklibrary.blinkble.entity.reslut.LockKeyResult;
@@ -1672,6 +1673,69 @@ public class BleLockManager {
             err.put("type", "sysParamError");
             err.put("message", t.getMessage());
             callback.onError(err);
+        }
+    }
+
+    /**
+     * Set (write) system parameters on the lock.
+     * Reads parameter fields from args, builds a SetSysParamAction and calls
+     * bleClient.setSysParam(). After the immediate response, the lock will
+     * also emit an updated SysParamResult via onEventReport (~1 s later) which
+     * is forwarded through the shared EventChannel as a "setSysParamResult" event.
+     */
+    public void setSysParam(Map<String, Object> args, final Result result) {
+        Log.d(TAG, "setSysParam called with args: " + args);
+        try {
+            SetSysParamAction action = new SetSysParamAction();
+            action.setBaseAuthAction(PluginUtils.createAuthAction(args));
+
+            // Map optional fields — each field is only applied when non-null / present
+            if (args.containsKey("lockOpen"))            action.setLockOpen(parseInt(args.get("lockOpen"), 0));
+            if (args.containsKey("normallyOpen"))        action.setNormallyOpen(parseInt(args.get("normallyOpen"), 0));
+            if (args.containsKey("isSound"))             action.setIsSound(parseInt(args.get("isSound"), 0));
+            if (args.containsKey("sysVolume"))           action.setSysVolume(parseInt(args.get("sysVolume"), 0));
+            if (args.containsKey("isTamperWarn"))        action.setIsTamperWarn(parseInt(args.get("isTamperWarn"), 0));
+            if (args.containsKey("isLockCoreWarn"))      action.setIsLockCoreWarn(parseInt(args.get("isLockCoreWarn"), 0));
+            if (args.containsKey("isLock"))              action.setIsLock(parseInt(args.get("isLock"), 0));
+            if (args.containsKey("isLockCap"))           action.setIsLockCap(parseInt(args.get("isLockCap"), 0));
+            if (args.containsKey("systemLanguage"))      action.setSystemLanguage(parseInt(args.get("systemLanguage"), 0));
+            if (args.containsKey("replaceSet"))          action.setReplaceSet(parseInt(args.get("replaceSet"), 0));
+            if (args.containsKey("antiCopyFunction"))    action.setAntiCopyFunction(parseInt(args.get("antiCopyFunction"), 0));
+            if (args.containsKey("keyTrialErrorAlarmEn")) action.setKeyTrialErrorAlarmEn(parseInt(args.get("keyTrialErrorAlarmEn"), 0));
+            if (args.containsKey("noneCloseVoiceAlarmEn")) action.setNoneCloseVoiceAlarmEn(parseInt(args.get("noneCloseVoiceAlarmEn"), 0));
+
+            bleClient.setSysParam(action, new FunCallback<SysParamResult>() {
+                @Override
+                public void onResponse(Response<SysParamResult> response) {
+                    try {
+                        Map<String, Object> bodyMap = null;
+                        try {
+                            SysParamResult body = response.body();
+                            if (body != null) bodyMap = sysParamToMap(body);
+                        } catch (Throwable ignored) {}
+                        Map<String, Object> resMap = responseToMap(response, bodyMap);
+                        if (response.isSuccessful()) {
+                            postResultSuccess(result, resMap);
+                        } else {
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("code", response.code());
+                            details.put("ackMessage", ackMessageForCode(response.code()));
+                            postResultError(result, "FAILED", "Code: " + response.code(), details);
+                        }
+                    } catch (Throwable t) {
+                        postResultError(result, "ERROR", t.getMessage(), null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    Log.e(TAG, "setSysParam failed", t);
+                    postResultError(result, "ERROR", t.getMessage(), null);
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception calling setSysParam", t);
+            postResultError(result, "ERROR", t.getMessage(), null);
         }
     }
 

@@ -487,6 +487,94 @@
     }
 }
 
+// Set (write) system parameters to the lock.
+// After the immediate response, the lock will emit an updated SysParamResult
+// via onEventReport (~1 s later) which arrives through the shared EventChannel
+// as a "setSysParamResult" event.
+- (void)setSystemParameters:(NSDictionary *)args result:(FlutterResult)result {
+    OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
+    if (![self validateArgs:args method:@"setSystemParameters" one:one]) return;
+
+    if (!self.addHelper) {
+        self.addHelper = [[HXAddBluetoothLockHelper alloc] init];
+    }
+
+    FlutterError *cfgErr = nil;
+    if (![self configureLockFromArgs:args error:&cfgErr]) {
+        [one error:cfgErr.code message:cfgErr.message details:cfgErr.details];
+        return;
+    }
+
+    NSString *mac = [PluginUtils lockMacFromArgs:args];
+    if (mac.length == 0) {
+        [one error:@"ERROR" message:@"mac is required" details:nil];
+        return;
+    }
+
+    // Build HXSetSystemParameters from the incoming args map.
+    // All fields except lockMac are optional — only set when non-zero.
+    HXSetSystemParameters *params = [[HXSetSystemParameters alloc] init];
+    params.lockMac = mac;
+
+    // Helper macro to set int property only when key present and non-zero.
+    // Using direct if-blocks for clarity.
+    id lockOpenVal          = args[@"lockOpen"];
+    id normallyOpenVal      = args[@"normallyOpen"];
+    id isSoundVal           = args[@"isSound"];
+    id sysVolumeVal         = args[@"sysVolume"];
+    id isTamperWarnVal      = args[@"isTamperWarn"];
+    id isLockCoreWarnVal    = args[@"isLockCoreWarn"];
+    id isLockVal            = args[@"isLock"];
+    id isLockCapVal         = args[@"isLockCap"];
+    id systemLanguageVal    = args[@"systemLanguage"];
+    id replaceSetVal        = args[@"replaceSet"];
+    id antiCopyVal          = args[@"antiCopyFunction"];
+    id keyTrialVal          = args[@"keyTrialErrorAlarmEn"];
+    id noneCloseVal         = args[@"noneCloseVoiceAlarmEn"];
+
+    if (lockOpenVal       && [lockOpenVal       isKindOfClass:[NSNumber class]]) params.openMode                = [lockOpenVal       intValue];
+    if (normallyOpenVal   && [normallyOpenVal   isKindOfClass:[NSNumber class]]) params.normallyOpenMode        = [normallyOpenVal   intValue];
+    if (isSoundVal        && [isSoundVal        isKindOfClass:[NSNumber class]]) params.volumeEnable            = [isSoundVal        intValue];
+    if (sysVolumeVal      && [sysVolumeVal      isKindOfClass:[NSNumber class]]) params.systemVolume            = [sysVolumeVal      intValue];
+    if (isTamperWarnVal   && [isTamperWarnVal   isKindOfClass:[NSNumber class]]) params.shackleAlarmEnable      = [isTamperWarnVal   intValue];
+    if (isLockCoreWarnVal && [isLockCoreWarnVal isKindOfClass:[NSNumber class]]) params.lockCylinderAlarmEnable = [isLockCoreWarnVal intValue];
+    if (isLockVal         && [isLockVal         isKindOfClass:[NSNumber class]]) params.antiLockEnable          = [isLockVal         intValue];
+    if (isLockCapVal      && [isLockCapVal      isKindOfClass:[NSNumber class]]) params.lockCoverAlarmEnable    = [isLockCapVal      intValue];
+    if (systemLanguageVal && [systemLanguageVal isKindOfClass:[NSNumber class]]) params.systemLanguage          = [systemLanguageVal intValue];
+    if (replaceSetVal     && [replaceSetVal     isKindOfClass:[NSNumber class]]) params.replaceSet              = [replaceSetVal     intValue];
+    if (antiCopyVal       && [antiCopyVal       isKindOfClass:[NSNumber class]]) params.antiCopyFunction        = [antiCopyVal       intValue];
+    if (keyTrialVal       && [keyTrialVal       isKindOfClass:[NSNumber class]]) params.keyTrialErrorAlarmEn    = [keyTrialVal       intValue];
+    if (noneCloseVal      && [noneCloseVal      isKindOfClass:[NSNumber class]]) params.noneCloseVoiceAlarmEn   = [noneCloseVal      intValue];
+
+    NSLog(@"[BleLockManager] setSystemParameters: mac=%@, openMode=%d, volumeEnable=%d, normallyOpenMode=%d",
+          mac, params.openMode, params.volumeEnable, params.normallyOpenMode);
+
+    @try {
+        [HXBluetoothLockHelper setSystemParameters:params
+                                   completionBlock:^(KSHStatusCode statusCode, NSString *reason) {
+            @try {
+                [self.bleClient disConnectBle:nil]; // Always disconnect after command
+
+                NSDictionary *response = [self responseMapWithCode:statusCode
+                                                            message:reason
+                                                            lockMac:mac
+                                                               body:nil];
+                if (statusCode == KSHStatusCode_Success) {
+                    [one success:response];
+                } else {
+                    [one error:@"FAILED" message:reason ?: @"setSystemParameters failed" details:response];
+                }
+            } @catch (NSException *exception) {
+                NSLog(@"[BleLockManager] Exception in setSystemParameters callback: %@", exception);
+                [one error:@"ERROR" message:exception.reason ?: @"Exception in setSystemParameters" details:nil];
+            }
+        }];
+    } @catch (NSException *exception) {
+        NSLog(@"[BleLockManager] Exception calling setSystemParameters: %@", exception);
+        [one error:@"ERROR" message:exception.reason ?: @"Exception calling setSystemParameters" details:nil];
+    }
+}
+
 - (void)synclockkeys:(NSDictionary *)args result:(FlutterResult)result {
     OneShotResult *one = [[OneShotResult alloc] initWithResult:result];
     if (![self validateArgs:args method:@"synclockkeys" one:one]) return;

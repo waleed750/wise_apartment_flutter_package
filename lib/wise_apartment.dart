@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'src/models/hxj_bluetooth_device_model.dart';
+import 'src/models/set_sys_param_model.dart';
 import 'wise_apartment_platform_interface.dart';
 export 'src/wise_apartment_exception.dart';
 export 'src/models/export_hxj_models.dart';
@@ -338,6 +339,37 @@ class WiseApartment {
   /// Returns a Map with response metadata and `body` containing SysParam fields.
   Future<Map<String, dynamic>> getSysParam(Map<String, dynamic> auth) {
     return WiseApartmentPlatform.instance.getSysParam(auth);
+  }
+
+  /// Write system parameters to the lock.
+  ///
+  /// [auth] is the DNA/auth map (same as used for [getSysParam]).
+  /// [params] is a [SetSysParamModel] or a plain [Map<String,dynamic>] containing
+  /// only the fields you want to change. Omitted / null fields are left unchanged
+  /// on the device.
+  ///
+  /// Returns a base response map:
+  /// ```
+  /// {
+  ///   'isSuccessful': bool,
+  ///   'code': int,
+  ///   'ackMessage': String,
+  ///   'lockMac': String,
+  /// }
+  /// ```
+  /// About 1 second after a successful call the lock will emit an updated
+  /// [SysParamResult] via `onEventReport`.  Listen to [getSysParamStream]
+  /// (event type `'sysParam'`) to receive it.
+  Future<Map<String, dynamic>> setSysParam(
+    Map<String, dynamic> auth, {
+    SetSysParamModel? model,
+    Map<String, dynamic>? params,
+  }) {
+    assert(model != null || params != null,
+        'Provide either model or params to setSysParam');
+    final Map<String, dynamic> p =
+        model?.toMap() ?? Map<String, dynamic>.from(params!);
+    return WiseApartmentPlatform.instance.setSysParam(auth, p);
   }
 
   /// Exit/abort a long-running lock operation (sync, add-key, etc.).

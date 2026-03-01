@@ -225,6 +225,19 @@ class MockWiseApartmentPlatform
     // TODO: implement exitCmd
     throw UnimplementedError();
   }
+
+  @override
+  Future<Map<String, dynamic>> setSysParam(
+    Map<String, dynamic> auth,
+    Map<String, dynamic> params,
+  ) {
+    return Future.value({});
+  }
+
+  @override
+  Stream<Map<String, dynamic>> get bleEventStream {
+    return const Stream<Map<String, dynamic>>.empty();
+  }
 }
 
 void main() {
