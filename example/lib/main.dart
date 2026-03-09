@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'screens/add_device.dart';
 import 'screens/device_details.dart';
+import 'screens/add_nfc_screen.dart';
 import 'src/secure_storage.dart';
 
 void main() {
@@ -581,6 +582,31 @@ class _MyAppState extends State<MyApp> {
                                 await _loadSavedDevices();
                               }
                             },
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Add NFC',
+                                  icon: const Icon(Icons.nfc),
+                                  onPressed: () async {
+                                    final res = await Navigator.of(context)
+                                        .push<bool>(
+                                          MaterialPageRoute(
+                                            builder: (_) => AddNfcScreen(
+                                              auth: raw,
+                                              defaultKeyGroupId: 901,
+                                            ),
+                                          ),
+                                        );
+                                    if (res == true) {
+                                      _addLog(
+                                        'NFC added for ${raw['mac'] ?? raw['deviceDnaInfoStr']}',
+                                      );
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       },
