@@ -10,6 +10,7 @@ public class PluginUtils {
     public static BlinkyAuthAction createAuthAction(Map<String, Object> args) {
         BlinkyAuthAction.Builder builder = new BlinkyAuthAction.Builder();
 
+
         if (args == null) return builder.build();
 
         Object v;

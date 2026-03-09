@@ -956,9 +956,15 @@ static NSString *const kEventChannelName = @"wise_apartment/ble_events";
     addKeyParams.vaildNumber = [actionMap[@"vaildNumber"] intValue] ?: 255; // 255 = unlimited
     addKeyParams.validStartTime = [actionMap[@"validStartTime"] longValue] ?: 0; // 0 = permanent
     addKeyParams.validEndTime = [actionMap[@"validEndTime"] longValue] ?: 0xFFFFFFFF; // 0xFFFFFFFF = permanent
-    addKeyParams.authMode = [actionMap[@"vaildMode"] intValue] ?: 1; // 1 = validity period, 2 = periodic
-    
-    // Optional: periodic authorization parameters (authMode == 2)
+    // Dart vaildMode: 0 = single validity window, 1 = periodic/cycle.
+    // Native SDK authMode: 1 = single validity window, 2 = periodic/cycle.
+    int dartVaildMode = [actionMap[@"vaildMode"] intValue];
+    addKeyParams.authMode = (dartVaildMode == 1) ? 2 : 1; // 1 = validity period, 2 = periodic
+
+    // When periodic mode (authMode == 2), forward the week bitmask and daily
+    // time window. The week integer encodes each day as one bit:
+    //   Monday=1<<0=1, Tuesday=1<<1=2, Wednesday=1<<2=4,..., Sunday=1<<6=64.
+    // Combine days with bitwise OR, e.g. Mon+Wed+Fri = 1|4|16 = 21.
     if (addKeyParams.authMode == 2) {
         addKeyParams.week = [actionMap[@"week"] intValue] ?: 0;
         addKeyParams.dayStartTimes = [actionMap[@"dayStartTimes"] intValue] ?: 0;

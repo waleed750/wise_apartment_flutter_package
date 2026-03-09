@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Parcel;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -19,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.EventChannel;
 
+import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction;
 import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import android.bluetooth.BluetoothDevice;
 import com.example.hxjblinklibrary.blinkble.profile.client.LinkCallBack;
@@ -320,7 +322,12 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
         if (bleClient != null) {
           try {
             BlinkyAction action = new BlinkyAction();
-            action.setBaseAuthAction(PluginUtils.createAuthAction((Map<String, Object>) call.arguments));
+            BlinkyAuthAction authAction =  PluginUtils.createAuthAction((Map<String, Object>) call.arguments);
+            action.setBaseAuthAction(authAction);
+            BlinkyAuthAction _action = new BlinkyAuthAction(Parcel.obtain());
+            _action.setAuthCode(authAction.getAuthCode());
+            _action.setDnaKey(authAction.getDnaKey());
+
             bleClient.connectBle(action, new FunCallback() {
               @Override
               public void onResponse(Response response) {

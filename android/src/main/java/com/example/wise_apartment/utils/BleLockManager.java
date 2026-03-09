@@ -985,7 +985,11 @@ public class BleLockManager {
                     action.setStatus(parseInt(actionMap.get("status"), 0));
                     action.setLocalRemoteMode(parseInt(actionMap.get("localRemoteMode"), 0));
                     action.setAuthorMode(parseInt(actionMap.get("authorMode"), 0));
-                    action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
+                    // Dart vaildMode: 0 = single validity window, 1 = periodic/cycle.
+                    // Native SDK vaildMode: 1 = single validity window, 2 = periodic/cycle.
+                    // The week integer encodes days as bits: Mon=1<<0=1 ... Sun=1<<6=64.
+                    int dartVaildMode = parseInt(actionMap.get("vaildMode"), 0);
+                    action.setVaildMode(dartVaildMode == 1 ? 2 : 1);
 //                    final int keyDataType = parseInt(actionMap.get("keyDataType"), 0);
 //                    action.setKeyDataType(keyDataType);
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
@@ -1062,7 +1066,8 @@ public class BleLockManager {
                     action.setStatus(parseInt(actionMap.get("status"), 0));
                     action.setLocalRemoteMode(parseInt(actionMap.get("localRemoteMode"), 0));
                     action.setAuthorMode(parseInt(actionMap.get("authorMode"), 0));
-                    action.setVaildMode(parseInt(actionMap.get("vaildMode"), 0));
+                    int dartVaildModeStream = parseInt(actionMap.get("vaildMode"), 0);
+                    action.setVaildMode(dartVaildModeStream == 1 ? 2 : 1);
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
                     action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
                     action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"),0));  

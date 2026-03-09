@@ -197,7 +197,9 @@ class AddLockKeyActionModel {
       } else {
         // Admin: IDs 901..2000
         if (addedKeyGroupId < 901 || addedKeyGroupId > 2000) {
-          errs.add('User ID for Regular Administrator must be between 901 and 2000');
+          errs.add(
+            'User ID for Regular Administrator must be between 901 and 2000',
+          );
         }
       }
     }
@@ -219,6 +221,33 @@ class AddLockKeyActionModel {
   static const int addedCard = 4;
   static const int addedRemote = 8;
   static const int addedPassword = 2;
+
+  // ── Week bitmask constants (mirrors Java SHWeek / iOS kSHWeek) ────────────
+  // Each day occupies a single bit. Combine with | (bitwise OR) to represent
+  // multiple days as one integer. e.g. Mon + Wed + Fri = 1|4|16 = 21.
+  static const int MONDAY = 1 << 0; // 1
+  static const int TUESDAY = 1 << 1; // 2
+  static const int WEDNESDAY = 1 << 2; // 4
+  static const int THURSDAY = 1 << 3; // 8
+  static const int FRIDAY = 1 << 4; // 16
+  static const int SATURDAY = 1 << 5; // 32
+  static const int SUNDAY = 1 << 6; // 64
+
+  /// Set [week] from a set of day-bit constants (e.g. [MONDAY], [FRIDAY]).
+  /// Example:
+  ///   model.setWeekDays({AddLockKeyActionModel.MONDAY, AddLockKeyActionModel.WEDNESDAY});
+  /// You can also combine bits manually: model.week = MONDAY | FRIDAY; // 17
+  void setWeekDays(Set<int> dayBits) {
+    var mask = 0;
+    for (final bit in dayBits) {
+      mask |= bit;
+    }
+    week = mask;
+  }
+
+  /// Returns true when [dayBit] (e.g. [MONDAY]) is set in [week].
+  bool hasWeekDay(int dayBit) => (week & dayBit) != 0;
+
   // vaildNumber sentinel values
   static const int vaildNumberOneTime = 0x01;
   static const int vaildNumberUnlimited = 0xFF;
@@ -278,14 +307,29 @@ class AddLockKeyActionModel {
     return var1 | var2 | var3;
   }
 
-  /// Convert a set of weekday indexes (1..7) into a week bitmask used by the
-  /// lock: bit 0 -> day 1, bit 1 -> day 2, ... bit 6 -> day 7.
-  /// Example: days {1,3,5} -> bits (1<<0)|(1<<2)|(1<<4)
+  /// Convert a set of weekday indexes (1=Monday .. 7=Sunday) into a week
+  /// bitmask. Uses the same named constants as [MONDAY]..[SUNDAY]:
+  ///   1 → MONDAY  (1<<0=1)
+  ///   2 → TUESDAY (1<<1=2)
+  ///   ...
+  ///   7 → SUNDAY  (1<<6=64)
+  /// Example: {1, 3, 5} → MONDAY|WEDNESDAY|FRIDAY = 1|4|16 = 21
   static int computeWeekMaskFromDays(Set<int> days) {
     if (days.isEmpty) return 0;
+    // Index 0 unused; indexes 1-7 map directly to the MONDAY..SUNDAY constants.
+    const _dayBits = [
+      0,
+      MONDAY,
+      TUESDAY,
+      WEDNESDAY,
+      THURSDAY,
+      FRIDAY,
+      SATURDAY,
+      SUNDAY,
+    ];
     var mask = 0;
     for (final d in days) {
-      if (d >= 1 && d <= 7) mask |= (1 << (d - 1));
+      if (d >= 1 && d <= 7) mask |= _dayBits[d];
     }
     return mask;
   }
