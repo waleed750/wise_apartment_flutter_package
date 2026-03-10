@@ -1,6 +1,8 @@
 // ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
+import 'package:wise_apartment_example/screens/add_nfc_screen.dart';
+import 'package:wise_apartment_example/screens/add_remote_screen.dart';
 import 'sys_param_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:wise_apartment/src/wise_status_store.dart';
@@ -514,6 +516,52 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               ),
 
               const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AddNfcScreen(auth: widget.device.toMap()),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      spacing: 5,
+                      children: [
+                        Icon(Icons.nfc, size: 18),
+                        const Text('Add NFC'),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AddRemoteScreen(auth: widget.device.toMap()),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          spacing: 5,
+                          children: [
+                            Icon(Icons.settings_remote, size: 18),
+                            const Text('Add Remote'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                ],
+              ),
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () async {
@@ -646,7 +694,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-const SizedBox(height: 12),
+              const SizedBox(height: 12),
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () async {
@@ -654,9 +702,7 @@ const SizedBox(height: 12),
                     if (!mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => AddFingerprintScreen(
-                          auth: auth,
-                        ),
+                        builder: (_) => AddFingerprintScreen(auth: auth),
                       ),
                     );
                   },

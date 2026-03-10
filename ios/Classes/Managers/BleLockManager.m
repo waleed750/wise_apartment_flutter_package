@@ -1236,8 +1236,8 @@
     NSNumber *vaildNumber = action[@"vaildNumber"];
     if (vaildNumber) params.vaildNumber = [vaildNumber intValue];
     
-    // Weeks (valid when AuthMode=2)
-    NSNumber *weeks = action[@"weeks"];
+    // Week (valid when AuthMode=2)
+    NSNumber *weeks = action[@"week"];
     if (weeks) params.weeks = [weeks intValue];
 
     NSString *lockMac = [PluginUtils lockMacFromArgs:args];

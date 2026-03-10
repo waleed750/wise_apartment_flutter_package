@@ -533,6 +533,9 @@ class _SyncKeysScreenState extends State<SyncKeysScreen> {
                   ? const Center(child: Text('No keys found'))
                   : ListView.builder(
                       itemCount: _syncedKeys!.length,
+                      padding: EdgeInsets.only(
+                        bottom: 20,
+                      ),
                       itemBuilder: (context, index) {
                         final keyData = _syncedKeys![index];
                         final pretty = const JsonEncoder.withIndent(

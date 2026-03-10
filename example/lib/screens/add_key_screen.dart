@@ -26,11 +26,23 @@ class _AddKeyScreenState extends State<AddKeyScreen> {
   }
 
   Future<void> _populateDefaultParams() async {
+    final now = DateTime.now();
+    final start = now;
+    final end = now.add(const Duration(hours: 6));
+    String two(int v) => v.toString().padLeft(2, '0');
+    final dailyStart = '${two(start.hour)}:${two(start.minute)}';
+    final dailyEnd = '${two(end.hour)}:${two(end.minute)}';
+
     final Map<String, dynamic> defaults = {
       // Typical AddLockKey params; adapt to your lock model as needed
-      "keyType": 1,
-      "keyLen": 6,
-      "key": "123456",
+      'keyType': 1,
+      'keyLen': 6,
+      'key': '123456',
+      // Absolute start/end times (ISO 8601) and daily time window (HH:mm)
+      'startTime': start.toIso8601String(),
+      'endTime': end.toIso8601String(),
+      'dailyStartTime': dailyStart,
+      'dailyEndTime': dailyEnd,
     };
 
     try {
