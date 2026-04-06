@@ -221,7 +221,55 @@ If you maintain native integrations, map `authMode` ↔ `vaildMode` consistently
 
 ### Android Setup
 
-#### 1. Minimum SDK Version
+#### Android Setup (Required)
+
+This plugin depends on three vendor AARs (`hxjblinklibrary`, `bleoad`, `dfu`) that are **not** available on any public Maven repository. They are shipped inside the plugin's `android/libs/` folder and must be published to a local Maven repository before the app can build.
+
+### Why this is needed
+
+Flutter pulls the plugin into a unique pub-cache folder (e.g. `~/.pub-cache/git/wise_apartment_flutter_package-<hash>/`). The vendor AARs live inside that folder and must be indexed into a local `maven-repo` directory so Gradle can resolve them. This indexing step is not automatic by default.
+
+### One-time setup — add these two blocks to build.gradle.kts
+
+**1. Register the plugin's `maven-repo` as a repository** (inside `allprojects → repositories`):
+
+```kotlin
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    // wise_apartment vendor AARs — path resolves to the pub-cache hash folder automatically
+    maven {
+      val wiseDir = rootProject.findProject(":wise_apartment")?.projectDir
+      url = uri(wiseDir?.resolve("maven-repo")?.absolutePath ?: "$rootDir/maven-repo")
+    }
+    // ... rest of your repos
+  }
+}
+```
+
+**2. Auto-publish the AARs before every build** (after your `subprojects` blocks):
+
+```kotlin
+// Automatically publish wise_apartment vendor AARs into its local maven-repo
+// before every app build. Runs on every machine, CI, and after flutter pub get.
+gradle.projectsEvaluated {
+  val publishTask = tasks.findByPath(":wise_apartment:publish")
+  listOf("preBuild", "preDebugBuild", "preReleaseBuild").forEach { taskName ->
+    tasks.findByPath(":app:$taskName")?.dependsOn(publishTask)
+  }
+}
+```
+
+### What this does
+
+- Block 1 tells Gradle where to look for the vendor AARs.
+- Block 2 wires `:wise_apartment:publish` as a dependency of every build variant so the `maven-repo` is always created/updated automatically — even after `flutter pub get` places the plugin in a new pub-cache folder on a fresh clone or CI machine.
+
+### No manual steps needed after this
+
+Once both blocks are in place, `flutter run` / `flutter build apk` will just work. There is nothing to run manually.
+
 
 Ensure your `android/app/build.gradle` has:
 
