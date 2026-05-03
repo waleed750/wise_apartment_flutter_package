@@ -1096,11 +1096,14 @@ public class BleLockManager {
                 public void onResponse(Response<AddLockKeyResult> response) {
                     try {
                         Log.d(TAG, "addLockKey response - code: " + response.code() + ", isSuccessful: " + response.isSuccessful());
-                        
+
                         Map<String, Object> event = new HashMap<>();
                         event.put("code", response.code());
-                        event.put("isSuccessful", response.isSuccessful());
+                        event.put("message", WiseStatusCode.description(response.code()));
                         event.put("ackMessage", WiseStatusCode.description(response.code()));
+                        event.put("isSuccessful", response.isSuccessful());
+                        event.put("isError", !response.isSuccessful());
+                        event.put("lockMac", response.getLockMac() != null ? response.getLockMac() : "");
 
                         Map<String, Object> bodyMap = null;
                         if (response.body() != null) {

@@ -14,7 +14,7 @@ import com.example.hxjblinklibrary.blinkble.profile.client.HxjBleClient;
 import com.example.hxjblinklibrary.blinkble.entity.requestaction.BlinkyAuthAction;
 import com.example.hxjblinklibrary.blinkble.profile.other.ATConfigHelper;
 import com.example.hxjblinklibrary.blinkble.profile.other.Cat1ATConfigHelper;
-import com.example.wise_apartment.BuildConfig;
+//import com.example.wise_apartment.BuildConfig;
 
 public class DeviceInfoManager {
     private static final String TAG = "DeviceInfoManager";
