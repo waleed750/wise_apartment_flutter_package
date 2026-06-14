@@ -33,6 +33,7 @@ import com.example.hxjblinklibrary.blinkble.entity.requestaction.BleHotelLockSys
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 
 public class BleLockManager {
@@ -1014,17 +1015,41 @@ public class BleLockManager {
             // Log the fully built action for debugging
             try { Log.d(TAG, "addLockKey action built: " + objectToMap(action)); } catch (Throwable ignored) {}
 
+            final AtomicBoolean resultCompleted = new AtomicBoolean(false);
             bleClient.addLockKey(action, new FunCallback<AddLockKeyResult>() {
                 @Override
                 public void onResponse(Response<AddLockKeyResult> response) {
                     if (response.isSuccessful() && response.body() != null) {
                         try {
                             Map<String, Object> bodyMap = objectToMap(response.body());
-                            postResultSuccess(result, responseToMap(response, bodyMap));
+                            if (bodyMap.containsKey("authorNum")) {
+                                bodyMap.put("authTotal", bodyMap.get("authorNum"));
+                            }
+                            if (bodyMap.containsKey("authorTimes")) {
+                                bodyMap.put("authCount", bodyMap.get("authorTimes"));
+                            }
+                            if (bodyMap.containsKey("lockKeyId")) {
+                                bodyMap.put("keyId", bodyMap.get("lockKeyId"));
+                            }
+
+                            int authTotal = parseInt(bodyMap.get("authTotal"), 0);
+                            int authCount = parseInt(bodyMap.get("authCount"), 0);
+                            boolean enrollmentComplete = authTotal == 0
+                                    || (authTotal > 0 && authCount >= authTotal);
+
+                            if (enrollmentComplete && resultCompleted.compareAndSet(false, true)) {
+                                postResultSuccess(result, responseToMap(response, bodyMap));
+                            } else if (!enrollmentComplete) {
+                                Log.d(TAG, "addLockKey enrollment in progress ("
+                                        + authCount + "/" + authTotal + ")");
+                            }
                         } catch (Throwable t) {
-                            postResultError(result, "ERROR", t.getMessage(), null);
+                            if (resultCompleted.compareAndSet(false, true)) {
+                                postResultError(result, "ERROR", t.getMessage(), null);
+                            }
                         }
                     } else {
+                        if (!resultCompleted.compareAndSet(false, true)) return;
                         try {
                             Map<String, Object> details = new HashMap<>();
                             details.put("code", response.code());
@@ -1039,7 +1064,9 @@ public class BleLockManager {
                 @Override
                 public void onFailure(Throwable t) {
                     Log.e(TAG, "addLockKey failed", t);
-                    postResultError(result, "ERROR", t.getMessage(), null);
+                    if (resultCompleted.compareAndSet(false, true)) {
+                        postResultError(result, "ERROR", t.getMessage(), null);
+                    }
                 }
             });
         } catch (Throwable t) {
@@ -1108,6 +1135,15 @@ public class BleLockManager {
                         Map<String, Object> bodyMap = null;
                         if (response.body() != null) {
                             bodyMap = objectToMap(response.body());
+                            if (bodyMap.containsKey("authorNum")) {
+                                bodyMap.put("authTotal", bodyMap.get("authorNum"));
+                            }
+                            if (bodyMap.containsKey("authorTimes")) {
+                                bodyMap.put("authCount", bodyMap.get("authorTimes"));
+                            }
+                            if (bodyMap.containsKey("lockKeyId")) {
+                                bodyMap.put("keyId", bodyMap.get("lockKeyId"));
+                            }
                             event.put("body", bodyMap);
                         } else {
                             event.put("body", null);
@@ -1127,11 +1163,11 @@ public class BleLockManager {
                         int authTotal = 0;
                         int authCount = 0;
                         if (bodyMap != null) {
-                            if (bodyMap.containsKey("authTotal")) {
-                                authTotal = parseInt(bodyMap.get("authTotal"), 0);
+                            if (bodyMap.containsKey("authorNum")) {
+                                authTotal = parseInt(bodyMap.get("authorNum"), 0);
                             }
-                            if (bodyMap.containsKey("authCount")) {
-                                authCount = parseInt(bodyMap.get("authCount"), 0);
+                            if (bodyMap.containsKey("authorTimes")) {
+                                authCount = parseInt(bodyMap.get("authorTimes"), 0);
                             }
                         }
                         
