@@ -13,7 +13,11 @@ allprojects {
     }
 }
 
+val flutterBuildDir = rootProject.layout.projectDirectory.dir("../build")
+rootProject.layout.buildDirectory.set(flutterBuildDir)
+
 subprojects {
+    layout.buildDirectory.set(flutterBuildDir.dir(name))
     project.evaluationDependsOn(":app")
 }
 

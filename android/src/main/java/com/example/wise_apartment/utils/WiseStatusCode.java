@@ -19,7 +19,7 @@ public final class WiseStatusCode {
     public static final int ACK_STATUS_DEL_ADMIN_ERR = 0x0B; // Prohibit deleting administrators
     public static final int ACK_STATUS_FULL_ERR = 0x0E; // Storage full
     public static final int ACK_STATUS_PACKET_FOLLWOED = 0x0F; // Follow-up data packets available
-    public static final int ACK_STATUS_NEXT = 0x10; // Door locked, cannot open/unlock
+    public static final int ACK_STATUS_NEXT = 0x10; // Next step required (intermediate progress during enrollment)
     public static final int ACK_STATUS_ADD_KEY_EXIT = 0x11; // Exit and add key
     public static final int ACK_STATUS_RF_BUSY = 0x23; // RF module busy
     public static final int ACK_STATUS_OPEN_LOCKING = 0x2B; // Electronic lock engaged
@@ -56,7 +56,7 @@ public final class WiseStatusCode {
             case ACK_STATUS_DEL_ADMIN_ERR: return "Prohibit deleting administrators";
             case ACK_STATUS_FULL_ERR: return "Storage full";
             case ACK_STATUS_PACKET_FOLLWOED: return "Follow-up data packets available";
-            case ACK_STATUS_NEXT: return "Door locked, cannot open/unlock";
+            case ACK_STATUS_NEXT: return "Next step required";
             case ACK_STATUS_ADD_KEY_EXIT: return "Exit and add key status";
             case ACK_STATUS_RF_BUSY: return "RF module busy";
             case ACK_STATUS_OPEN_LOCKING: return "Electronic lock engaged (unlock not allowed)";

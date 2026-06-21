@@ -246,7 +246,7 @@ public class BleLockManager {
             case 0x0B: return "Prohibit deleting administrators";
             case 0x0E: return "Storage full";
             case 0x0F: return "Follow-up data packets available";
-            case 0x10: return "Door locked, cannot open/unlock";
+            case 0x10: return "Next step required";
             case 0x11: return "Exit and add key status";
             case 0x23: return "RF module busy";
             case 0x2B: return "Electronic lock engaged (unlock not allowed)";
@@ -990,17 +990,17 @@ public class BleLockManager {
                     // Native SDK vaildMode: 1 = single validity window, 2 = periodic/cycle.
                     // The week integer encodes days as bits: Mon=1<<0=1 ... Sun=1<<6=64.
                     int dartVaildMode = parseInt(actionMap.get("vaildMode"), 0);
-                    action.setVaildMode(dartVaildMode == 1 ? 2 : 1);
+                    action.setVaildMode(dartVaildMode);
 //                    final int keyDataType = parseInt(actionMap.get("keyDataType"), 0);
 //                    action.setKeyDataType(keyDataType);
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
-                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
+                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyID"), 0));
 
                     final int addedKeyGroupID = parseInt(actionMap.get("addedKeyGroupId"), 0);
                     action.setAddedKeyGroupId(addedKeyGroupID);
                     action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
                     action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
-                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));
+                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFFL));
                     action.setWeek(parseInt(actionMap.get("week"), 0));
                     action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
                     action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 0));
@@ -1019,21 +1019,30 @@ public class BleLockManager {
             bleClient.addLockKey(action, new FunCallback<AddLockKeyResult>() {
                 @Override
                 public void onResponse(Response<AddLockKeyResult> response) {
-                    if (response.isSuccessful() && response.body() != null) {
-                        try {
-                            Map<String, Object> bodyMap = objectToMap(response.body());
-                            if (bodyMap.containsKey("authorNum")) {
-                                bodyMap.put("authTotal", bodyMap.get("authorNum"));
-                            }
-                            if (bodyMap.containsKey("authorTimes")) {
-                                bodyMap.put("authCount", bodyMap.get("authorTimes"));
-                            }
-                            if (bodyMap.containsKey("lockKeyId")) {
-                                bodyMap.put("keyId", bodyMap.get("lockKeyId"));
-                            }
+                    int authTotal = 0;
+                    int authCount = 0;
+                    int lockKeyId = 0;
+                    if (response.body() != null) {
+                        authTotal = response.body().getAuthorNum();
+                        authCount = response.body().getAuthorTimes();
+                        lockKeyId = response.body().getLockKeyId();
+                    }
 
-                            int authTotal = parseInt(bodyMap.get("authTotal"), 0);
-                            int authCount = parseInt(bodyMap.get("authCount"), 0);
+                    // ACK_STATUS_NEXT (0x10) is intermediate progress during multi-step
+                    // enrollment (fingerprint). Treat it as in-progress, not an error.
+                    if (response.code() == WiseStatusCode.ACK_STATUS_NEXT) {
+                        Log.d(TAG, "addLockKey enrollment in progress (NEXT) ("
+                                + authCount + "/" + authTotal + ")");
+                        return;
+                    }
+
+                    if (response.isSuccessful()) {
+                        try {
+                            Map<String, Object> bodyMap = new HashMap<>();
+                            bodyMap.put("authTotal", authTotal);
+                            bodyMap.put("authCount", authCount);
+                            bodyMap.put("keyId", lockKeyId);
+
                             boolean enrollmentComplete = authTotal == 0
                                     || (authTotal > 0 && authCount >= authTotal);
 
@@ -1094,13 +1103,13 @@ public class BleLockManager {
                     action.setLocalRemoteMode(parseInt(actionMap.get("localRemoteMode"), 0));
                     action.setAuthorMode(parseInt(actionMap.get("authorMode"), 0));
                     int dartVaildModeStream = parseInt(actionMap.get("vaildMode"), 0);
-                    action.setVaildMode(dartVaildModeStream == 1 ? 2 : 1);
+                    action.setVaildMode(dartVaildModeStream);
                     action.setAddedKeyType(parseInt(actionMap.get("addedKeyType"), 0));
-                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyId"), 0));
-                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"),0));  
+                    action.setAddedKeyID(parseInt(actionMap.get("addedKeyID"), 0));
+                    action.setAddedKeyGroupId(parseInt(actionMap.get("addedKeyGroupId"),0));
                     action.setModifyTimestamp(parseLong(actionMap.get("modifyTimestamp"), 0L));
                     action.setValidStartTime(parseLong(actionMap.get("validStartTime"), 0L));
-                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFF2L));
+                    action.setValidEndTime(parseLong(actionMap.get("validEndTime"), 0xFFFFFFFFL));
                     action.setWeek(parseInt(actionMap.get("week"), 0));
                     action.setDayStartTimes(parseInt(actionMap.get("dayStartTimes"), 0));
                     action.setDayEndTimes(parseInt(actionMap.get("dayEndTimes"), 0));
@@ -1122,7 +1131,25 @@ public class BleLockManager {
                 @Override
                 public void onResponse(Response<AddLockKeyResult> response) {
                     try {
-                        Log.d(TAG, "addLockKey response - code: " + response.code() + ", isSuccessful: " + response.isSuccessful());
+                        // Read authTotal/authCount directly from the response body
+                        // (same approach as iOS callback params and the SDK demo)
+                        int authTotal = 0;
+                        int authCount = 0;
+                        int lockKeyId = 0;
+                        if (response.body() != null) {
+                            authTotal = response.body().getAuthorNum();
+                            authCount = response.body().getAuthorTimes();
+                            lockKeyId = response.body().getLockKeyId();
+                        }
+
+                        Log.d(TAG, "addLockKey response - code: " + response.code()
+                                + ", authTotal: " + authTotal + ", authCount: " + authCount);
+
+                        Map<String, Object> body = new HashMap<>();
+                        body.put("authTotal", authTotal);
+                        body.put("authCount", authCount);
+                        body.put("keyId", lockKeyId);
+                        body.put("lockMac", response.getLockMac() != null ? response.getLockMac() : "");
 
                         Map<String, Object> event = new HashMap<>();
                         event.put("code", response.code());
@@ -1131,25 +1158,28 @@ public class BleLockManager {
                         event.put("isSuccessful", response.isSuccessful());
                         event.put("isError", !response.isSuccessful());
                         event.put("lockMac", response.getLockMac() != null ? response.getLockMac() : "");
+                        event.put("body", body);
 
-                        Map<String, Object> bodyMap = null;
-                        if (response.body() != null) {
-                            bodyMap = objectToMap(response.body());
-                            if (bodyMap.containsKey("authorNum")) {
-                                bodyMap.put("authTotal", bodyMap.get("authorNum"));
+                        // ACK_STATUS_NEXT (0x10) = intermediate progress during multi-step
+                        // enrollment (e.g. fingerprint). The SDK demo treats this as
+                        // "place finger again", not as an error.
+                        if (response.code() == WiseStatusCode.ACK_STATUS_NEXT) {
+                            String progressMsg;
+                            if (authTotal == 255) {
+                                progressMsg = "Please enroll fingerprint (" + authCount + ")";
+                            } else if (authTotal > 0) {
+                                progressMsg = "Please enroll fingerprint (" + authCount + "/" + authTotal + ")";
+                            } else {
+                                progressMsg = "Please enroll fingerprint";
                             }
-                            if (bodyMap.containsKey("authorTimes")) {
-                                bodyMap.put("authCount", bodyMap.get("authorTimes"));
-                            }
-                            if (bodyMap.containsKey("lockKeyId")) {
-                                bodyMap.put("keyId", bodyMap.get("lockKeyId"));
-                            }
-                            event.put("body", bodyMap);
-                        } else {
-                            event.put("body", null);
+                            Log.d(TAG, "Enrollment in progress (NEXT) - " + progressMsg);
+                            event.put("type", "addLockKeyChunk");
+                            event.put("message", progressMsg);
+                            if (callback != null) callback.onChunk(event);
+                            return;
                         }
 
-                        // Handle errors first
+                        // Handle real errors (not SUCCESS and not NEXT)
                         if (!response.isSuccessful()) {
                             Log.d(TAG, "addLockKey error - emitting addLockKeyError");
                             event.put("type", "addLockKeyError");
@@ -1157,29 +1187,13 @@ public class BleLockManager {
                             if (callback != null) callback.onError(event);
                             return;
                         }
-                        
-                        // Success: Check if enrollment is complete (matching iOS demo pattern)
-                        // Extract authTotal and authCount from response body
-                        int authTotal = 0;
-                        int authCount = 0;
-                        if (bodyMap != null) {
-                            if (bodyMap.containsKey("authorNum")) {
-                                authTotal = parseInt(bodyMap.get("authorNum"), 0);
-                            }
-                            if (bodyMap.containsKey("authorTimes")) {
-                                authCount = parseInt(bodyMap.get("authorTimes"), 0);
-                            }
-                        }
-                        
-                        Log.d(TAG, "addLockKey - authTotal: " + authTotal + ", authCount: " + authCount);
-                        
+
+                        // SUCCESS: Check if enrollment is complete
                         if (authTotal > 0 && authTotal == authCount) {
-                            // All fingerprint scans completed - key fully enrolled
                             Log.d(TAG, "Enrollment complete (" + authCount + "/" + authTotal + ") - emitting addLockKeyDone");
                             event.put("type", "addLockKeyDone");
                             if (callback != null) callback.onDone(event);
                         } else if (authTotal > 0) {
-                            // Still need more fingerprint scans - emit progress chunk
                             String progressMsg;
                             if (authTotal == 255) {
                                 progressMsg = "Please enroll fingerprint (" + authCount + ")";
@@ -1191,7 +1205,6 @@ public class BleLockManager {
                             event.put("message", progressMsg);
                             if (callback != null) callback.onChunk(event);
                         } else {
-                            // No authTotal/authCount (password key or single-step key) - complete immediately
                             Log.d(TAG, "Single-step key added - emitting addLockKeyDone");
                             event.put("type", "addLockKeyDone");
                             if (callback != null) callback.onDone(event);
