@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -16,13 +17,34 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
   final eventChannel = const EventChannel('wise_apartment/ble_events');
 
-  late final Stream<Map<String, dynamic>> _sharedEventStream =
-      eventChannel.receiveBroadcastStream().map((event) {
-    if (event is Map) {
-      return Map<String, dynamic>.from(event);
-    }
-    return <String, dynamic>{'type': 'unknown', 'data': event};
-  }).asBroadcastStream();
+  final StreamController<Map<String, dynamic>> _eventController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  bool _nativeListenerActive = false;
+
+  Stream<Map<String, dynamic>> get _sharedEventStream {
+    _ensureNativeListener();
+    return _eventController.stream;
+  }
+
+  void _ensureNativeListener() {
+    if (_nativeListenerActive) return;
+    _nativeListenerActive = true;
+
+    eventChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (event is Map) {
+          _eventController.add(Map<String, dynamic>.from(event));
+        } else {
+          _eventController
+              .add(<String, dynamic>{'type': 'unknown', 'data': event});
+        }
+      },
+      onError: (e) {
+        _eventController.addError(e);
+      },
+    );
+  }
 
   @override
   Stream<Map<String, dynamic>> get syncLockKeyStream => _sharedEventStream;

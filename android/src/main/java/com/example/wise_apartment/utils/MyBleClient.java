@@ -23,8 +23,16 @@ public class MyBleClient extends HxjBleClient {
     private WifiRegistrationCallback wifiCallback;
     private LinkCallBack externalLinkCallBack;
 
+    public LinkCallBack getExternalLinkCallBack() {
+        return this.externalLinkCallBack;
+    }
+
     public interface WifiRegistrationCallback {
         void onWifiRegistrationEvent(int status, String moduleMac, String lockMac);
+    }
+
+    public WifiRegistrationCallback getWifiRegistrationCallback() {
+        return this.wifiCallback;
     }
 
     public void setWifiRegistrationCallback(WifiRegistrationCallback callback) {

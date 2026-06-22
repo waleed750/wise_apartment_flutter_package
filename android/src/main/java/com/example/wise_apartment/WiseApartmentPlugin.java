@@ -88,8 +88,8 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
           bleClient = MyBleClient.getInstance(context);
           Log.d(TAG, "MyBleClient initialized");
           
-          // Register WiFi registration callback to emit events to Flutter
-          if (bleClient instanceof MyBleClient) {
+          // Only set if not already registered by another engine (e.g. Firebase background isolate)
+          if (bleClient instanceof MyBleClient && ((MyBleClient) bleClient).getWifiRegistrationCallback() == null) {
             ((MyBleClient) bleClient).setWifiRegistrationCallback(new MyBleClient.WifiRegistrationCallback() {
               @Override
               public void onWifiRegistrationEvent(final int status, final String moduleMac, final String lockMac) {
@@ -136,6 +136,8 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
             });
           }
           
+          // Only set LinkCallBack if not already registered by another engine
+          if (bleClient instanceof MyBleClient && ((MyBleClient) bleClient).getExternalLinkCallBack() == null) {
           bleClient.setLinkCallBack(new LinkCallBack() {
             @Override
             public void onDeviceConnected(@NonNull BluetoothDevice device) {
@@ -162,6 +164,7 @@ public class WiseApartmentPlugin implements FlutterPlugin, MethodCallHandler {
               Log.d(TAG, "Event: " + data);
             }
           });
+          }
           // Initialize Managers with the client
           lockManager = new BleLockManager(bleClient);
           scanManager = new BleScanManager(context);
