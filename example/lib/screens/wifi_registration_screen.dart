@@ -4,11 +4,9 @@ import 'dart:developer';
 // ignore_for_file: unused_local_variable, unused_field, unnecessary_cast, unused_import, dead_code, unnecessary_null_comparison
 import 'package:flutter/material.dart';
 import 'package:wise_apartment/wise_apartment.dart';
-import 'package:wise_apartment/src/models/wifi_registration_event.dart';
 import 'package:wise_apartment_example/src/config.dart';
 import '../src/wifi_config.dart';
 import '../src/api_service.dart';
-import 'package:wise_apartment/src/models/dna_info_model.dart';
 
 class WifiRegistrationScreen extends StatefulWidget {
   final DnaInfoModel device;

@@ -16,107 +16,44 @@ class MethodChannelWiseApartment extends WiseApartmentPlatform {
   @visibleForTesting
   final eventChannel = const EventChannel('wise_apartment/ble_events');
 
-  Stream<Map<String, dynamic>>? _syncLockKeyStream;
-  Stream<Map<String, dynamic>>? _syncLockRecordsStream;
+  late final Stream<Map<String, dynamic>> _sharedEventStream =
+      eventChannel.receiveBroadcastStream().map((event) {
+    if (event is Map) {
+      return Map<String, dynamic>.from(event);
+    }
+    return <String, dynamic>{'type': 'unknown', 'data': event};
+  }).asBroadcastStream();
 
   @override
-  Stream<Map<String, dynamic>> get syncLockKeyStream {
-    _syncLockKeyStream ??= eventChannel.receiveBroadcastStream().map((event) {
-      if (event is Map) {
-        return Map<String, dynamic>.from(event);
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _syncLockKeyStream!;
-  }
+  Stream<Map<String, dynamic>> get syncLockKeyStream => _sharedEventStream;
 
   @override
-  Stream<Map<String, dynamic>> get syncLockRecordsStream {
-    _syncLockRecordsStream ??= eventChannel.receiveBroadcastStream().map((
-      event,
-    ) {
-      if (event is Map) {
-        return Map<String, dynamic>.from(event);
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _syncLockRecordsStream!;
-  }
-
-  Stream<Map<String, dynamic>>? _sysParamStream;
+  Stream<Map<String, dynamic>> get syncLockRecordsStream => _sharedEventStream;
 
   @override
-  Stream<Map<String, dynamic>> get getSysParamStream {
-    _sysParamStream ??= eventChannel.receiveBroadcastStream().map((event) {
-      if (event is Map) {
-        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
-        final String? type = m['type'] is String ? m['type'] as String : null;
-        if (type == 'sysParam' ||
+  Stream<Map<String, dynamic>> get getSysParamStream =>
+      _sharedEventStream.where((m) {
+        final type = m['type'] as String?;
+        return type == 'sysParam' ||
             type == 'sysParamDone' ||
-            type == 'sysParamError') {
-          return m;
-        }
-        // ignore other event types
-        return <String, dynamic>{'type': 'unknown', 'data': event};
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _sysParamStream!;
-  }
-
-  Stream<Map<String, dynamic>>? _wifiRegistrationStream;
+            type == 'sysParamError';
+      });
 
   @override
-  Stream<Map<String, dynamic>> get wifiRegistrationStream {
-    _wifiRegistrationStream ??= eventChannel.receiveBroadcastStream().map((
-      event,
-    ) {
-      if (event is Map) {
-        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
-        final String? type = m['type'] is String ? m['type'] as String : null;
-        if (type == 'wifiRegistration') {
-          return m;
-        }
-        // ignore other event types
-        return <String, dynamic>{'type': 'unknown', 'data': event};
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _wifiRegistrationStream!;
-  }
-
-  Stream<Map<String, dynamic>>? _addLockKeyStream;
+  Stream<Map<String, dynamic>> get wifiRegistrationStream =>
+      _sharedEventStream.where((m) => m['type'] == 'wifiRegistration');
 
   @override
-  Stream<Map<String, dynamic>> get addLockKeyStream {
-    _addLockKeyStream ??= eventChannel.receiveBroadcastStream().map((event) {
-      if (event is Map) {
-        final Map<String, dynamic> m = Map<String, dynamic>.from(event);
-        final String? type = m['type'] is String ? m['type'] as String : null;
-        if (type == 'addLockKeyChunk' ||
+  Stream<Map<String, dynamic>> get addLockKeyStream =>
+      _sharedEventStream.where((m) {
+        final type = m['type'] as String?;
+        return type == 'addLockKeyChunk' ||
             type == 'addLockKeyDone' ||
-            type == 'addLockKeyError') {
-          return m;
-        }
-        return <String, dynamic>{'type': 'unknown', 'data': event};
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _addLockKeyStream!;
-  }
-
-  Stream<Map<String, dynamic>>? _bleEventStream;
+            type == 'addLockKeyError';
+      });
 
   @override
-  Stream<Map<String, dynamic>> get bleEventStream {
-    _bleEventStream ??= eventChannel.receiveBroadcastStream().map((event) {
-      if (event is Map) {
-        return Map<String, dynamic>.from(event);
-      }
-      return <String, dynamic>{'type': 'unknown', 'data': event};
-    });
-    return _bleEventStream!;
-  }
+  Stream<Map<String, dynamic>> get bleEventStream => _sharedEventStream;
 
   // ignore: unused_element
   Map<String, dynamic> _iosMacArgsFromAuth(Map<String, dynamic> auth) {
