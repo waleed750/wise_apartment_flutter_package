@@ -246,6 +246,7 @@ allprojects {
     // ... rest of your repos
   }
 }
+
 ```
 
 **2. Auto-publish the AARs before every build** (after your `subprojects` blocks):
