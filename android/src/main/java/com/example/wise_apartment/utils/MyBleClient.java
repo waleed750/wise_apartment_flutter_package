@@ -21,6 +21,7 @@ public class MyBleClient extends HxjBleClient {
     private static final String TAG = "MyBleClient";
     private static MyBleClient sInstance;
     private WifiRegistrationCallback wifiCallback;
+    private LinkCallBack externalLinkCallBack;
 
     public interface WifiRegistrationCallback {
         void onWifiRegistrationEvent(int status, String moduleMac, String lockMac);
@@ -41,53 +42,56 @@ public class MyBleClient extends HxjBleClient {
         return sInstance;
     }
 
+    @Override
+    public void setLinkCallBack(LinkCallBack callBack) {
+        this.externalLinkCallBack = callBack;
+    }
+
     public MyBleClient(Context context) {
         super(context);
-        setLinkCallBack(new LinkCallBack() {
+        super.setLinkCallBack(new LinkCallBack() {
             @Override
             public void onDeviceConnected(@NonNull BluetoothDevice device) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onDeviceConnected(device);
             }
 
             @Override
             public void onDeviceDisconnected(@NonNull BluetoothDevice device) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onDeviceDisconnected(device);
             }
 
             @Override
             public void onLinkLossOccurred(@NonNull BluetoothDevice device) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onLinkLossOccurred(device);
             }
 
             @Override
             public void onDeviceReady(@NonNull BluetoothDevice device) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onDeviceReady(device);
             }
 
             @Override
             public void onDeviceNotSupported(@NonNull BluetoothDevice device) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onDeviceNotSupported(device);
             }
 
             @Override
             public void onError(@NonNull BluetoothDevice device, @NonNull String message, int errorCode) {
-
+                if (externalLinkCallBack != null) externalLinkCallBack.onError(device, message, errorCode);
             }
 
             @Override
             public void onEventReport(String substring, int cmdVersion, String lockMac) {
-
+                // Handle WiFi registration events internally first
                 EventResponse<String> stringEventResponse = EventPostDataParser.paraseCommon(substring);
                 Log.d(TAG, "onEventReport: 日志上报 " + stringEventResponse);
                 HXData data = new HXData(ByteUtil.hexStr2Byte(substring));
                 Integer eventPower = data.getIntValue(HXData.FORMAT_UINT8, 8);
                 switch (stringEventResponse.EventType()) {
                     case EventResponse.KeyEventConstants.LOCK_EVT_OPEN_LOCK:
-                        //...
                         break;
                     case EventResponse.KeyEventConstants.LOCK_EVT_ADD_LOCK_KEY:
                         KeyEventAddKey result = EventPostDataParser.parseAddKey(substring);
-                        // ...
                         break;
                     case 0x2D:
                         KeyEventRegWifi wifiReport = EventPostDataParser.parseWifiReg(substring);
@@ -103,11 +107,9 @@ public class MyBleClient extends HxjBleClient {
                         } else if (wifiStatus == 0x07) {
                             Log.d(TAG, "WiFi configuration timeout");
                         }
-                        
-                        // Get module MAC - try to get from wifiReport object
+
                         String moduleMac = "";
                         try {
-                            // Try reflection to get ModuleMac field
                             java.lang.reflect.Field moduleMacField = wifiReport.getClass().getDeclaredField("ModuleMac");
                             moduleMacField.setAccessible(true);
                             Object macValue = moduleMacField.get(wifiReport);
@@ -117,8 +119,7 @@ public class MyBleClient extends HxjBleClient {
                         } catch (Exception e) {
                             Log.w(TAG, "Could not get ModuleMac from wifiReport", e);
                         }
-                        
-                        // Send event via callback if registered
+
                         if (wifiCallback != null) {
                             Log.d(TAG, "Emitting WiFi registration event: status=" + wifiStatus + ", moduleMac=" + moduleMac + ", lockMac=" + lockMac);
                             wifiCallback.onWifiRegistrationEvent(wifiStatus, moduleMac, lockMac);
@@ -126,6 +127,8 @@ public class MyBleClient extends HxjBleClient {
                         break;
                 }
 
+                // Delegate to external callback so plugin also gets the event
+                if (externalLinkCallBack != null) externalLinkCallBack.onEventReport(substring, cmdVersion, lockMac);
             }
         });
     }
