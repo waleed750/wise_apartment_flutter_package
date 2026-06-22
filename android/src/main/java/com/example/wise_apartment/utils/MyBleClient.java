@@ -108,17 +108,7 @@ public class MyBleClient extends HxjBleClient {
                             Log.d(TAG, "WiFi configuration timeout");
                         }
 
-                        String moduleMac = "";
-                        try {
-                            java.lang.reflect.Field moduleMacField = wifiReport.getClass().getDeclaredField("ModuleMac");
-                            moduleMacField.setAccessible(true);
-                            Object macValue = moduleMacField.get(wifiReport);
-                            if (macValue != null) {
-                                moduleMac = macValue.toString();
-                            }
-                        } catch (Exception e) {
-                            Log.w(TAG, "Could not get ModuleMac from wifiReport", e);
-                        }
+                        String moduleMac = extractModuleMac(wifiReport, substring);
 
                         if (wifiCallback != null) {
                             Log.d(TAG, "Emitting WiFi registration event: status=" + wifiStatus + ", moduleMac=" + moduleMac + ", lockMac=" + lockMac);
@@ -131,6 +121,50 @@ public class MyBleClient extends HxjBleClient {
                 if (externalLinkCallBack != null) externalLinkCallBack.onEventReport(substring, cmdVersion, lockMac);
             }
         });
+    }
+
+    private static String extractModuleMac(KeyEventRegWifi wifiReport, String rawHex) {
+        // Try all String fields on the object (SDK field names may be obfuscated)
+        try {
+            for (java.lang.reflect.Field f : wifiReport.getClass().getDeclaredFields()) {
+                if (f.getType() == String.class) {
+                    f.setAccessible(true);
+                    Object val = f.get(wifiReport);
+                    if (val != null) {
+                        String s = val.toString().trim();
+                        if (!s.isEmpty() && s.matches("[0-9A-Fa-f]+") && s.length() >= 8) {
+                            Log.d(TAG, "Found moduleMac via field '" + f.getName() + "': " + s);
+                            return s;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Reflection scan for moduleMac failed", e);
+        }
+
+        // Fallback: parse module MAC from the raw hex string.
+        // The raw event hex contains the body after a fixed header.
+        // Known pattern: "0000502B45" appears in the hex payload.
+        // Look for a 10-char hex sequence that looks like a module MAC.
+        try {
+            if (rawHex != null && rawHex.length() >= 20) {
+                // The body portion starts after the event header (varies by format).
+                // Scan for "0000" prefix pattern typical of module MACs.
+                int idx = rawHex.indexOf("0000");
+                if (idx >= 0 && idx + 10 <= rawHex.length()) {
+                    String candidate = rawHex.substring(idx, idx + 10);
+                    if (candidate.matches("[0-9A-Fa-f]+")) {
+                        Log.d(TAG, "Extracted moduleMac from raw hex: " + candidate);
+                        return candidate;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Raw hex moduleMac extraction failed", e);
+        }
+
+        return "";
     }
 
     @Override
